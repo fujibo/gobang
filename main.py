@@ -19,11 +19,15 @@ def winning(board):
             return False
 
 def game(weights):
+
+    # parameters
+    alpha = 0.5
+    gamma = 0.9
+
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
-    end = False
 
-    while (board == 0).any():
+    while True:
         # change black and white
         if not turn:
             board = -board
@@ -32,51 +36,79 @@ def game(weights):
         places = np.where(board == 0)
 
         # set algorithm here.
-        nextBoard = []
+        Boards = []
         for i in range(places[0].size):
             tmp = board.copy()
             tmp[places[0][i], places[1][i]] = 1
-            nextBoard.append(tmp.flatten())
+            Boards.append(tmp.flatten())
 
-        nextBoard = np.array(nextBoard)
+        Boards = np.array(Boards)
 
         # 0 0 0 1 -1 1 0 0 0' s array
         # 0 0 0
         # 1-1 1
         # 0 0 0
-        r = np.argmax(weights.dot(nextBoard.transpose()))
+        r = np.argmax(weights.dot(Boards.transpose()))
 
         # r = np.random.randint(places[0].size)
 
         # put
         board[places[0][r], places[1][r]] = 1
 
+        Reward = 0
         # winning state
         if winning(board):
             if turn:
                 print("white")
-                end = True
+                Reward = 1
             else:
                 print("black")
-                end = True
+                Reward = -1
+
+        # update weights
+        if Reward != 0:
+            weights += alpha * (Reward - weights.dot(board.flatten())) * board.reshape(1, board.size)
+            return weights
+
+        # all masses are filled.
+        elif (board == 0).any():
+            print("draw")
+            weights += alpha * (Reward - weights.dot(board.flatten())) * board.reshape(1, board.size)
+            return weights
+
+        else:
+            nextboard = board.copy()
+            nextboard = -nextboard
+
+            # can move
+            places = np.where(nextboard == 0)
+
+            # set algorithm here.
+            Boards = []
+            for i in range(places[0].size):
+                tmp = nextboard.copy()
+                tmp[places[0][i], places[1][i]] = 1
+                Boards.append(tmp.flatten())
+
+            Boards = np.array(Boards)
+
+            weights += alpha * (Reward + gamma * np.max(weights.dot(Boards.transpose())) - weights.dot(board.flatten())) * board.reshape(1, board.size)
+
+
 
         # restore black and white
         if not turn:
             board = -board
 
-        print(board)
-
-        if end:
-            exit(0)
+        # print(board)
 
         # end of this turn
         turn = not turn
 
-    # all masses are filled.
-    else:
-        print("draw")
 
 if __name__ == '__main__':
-    # board 0: blank, 1: white, -1: black
     weights = np.random.rand(1, N*N)
-    game(weights)
+    # board 0: blank, 1: white, -1: black
+    for i in range(10000):
+        print(weights)
+        weights = game(weights)
