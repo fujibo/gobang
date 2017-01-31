@@ -1,5 +1,6 @@
 import numpy as np
 import numba
+import multiprocessing as mp
 
 # NxN bang
 # M moku
@@ -194,33 +195,37 @@ def dispBoard(board):
     'display board'
     for i in range(N):
         for j in range(N):
-            if b[i, j] == 1:
+            if board[i, j] == 1:
                 print("O", end="")
-            elif b[i, j] == -1:
+            elif board[i, j] == -1:
                 print("X", end="")
             else:
                 print(" ", end="")
         else:
             print("")
 
+def main(weights):
+    weights0 = weights.copy()
+
+    # reinforced learning
+    for i in range(50):
+        # print(weights)
+        weights = game(weights)
+
+    else:
+        # display result
+        b, res = play(weights0, weights)
+        dispBoard(b)
+        return res
+
 if __name__ == '__main__':
 
     # board 0: blank, 1: white, -1: black
     result = []
 
-    for test in range(10):
-        weights = np.random.rand(1, N*N)
-        weights0 = weights.copy()
-
-        # reinforced learning
-        for i in range(50):
-            # print(weights)
-            weights = game(weights)
-
-        else:
-            # display result
-            b, res = play(weights0, weights)
-            dispBoard(b)
-            result.append(res)
+    testSize = 4
+    pool = mp.Pool(testSize)
+    args = np.random.rand(1, N*N, testSize)
+    result = pool.map(main, iterable=[args[:, :, i] for i in range(testSize)])
 
     print(result)
