@@ -4,8 +4,8 @@ import multiprocessing as mp
 
 # NxN bang
 # M moku
-N = 10
-M = 5
+N = 7
+M = 4
 
 @numba.jit
 def winning(board):
@@ -208,7 +208,7 @@ def main(weights):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(50):
+    for i in range(100):
         # print(weights)
         weights = game(weights)
 
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     # board 0: blank, 1: white, -1: black
     result = []
 
-    testSize = 4
+    testSize = 100
     pool = mp.Pool(testSize)
     args = np.random.rand(1, N*N, testSize)
     result = pool.map(main, iterable=[args[:, :, i] for i in range(testSize)])
