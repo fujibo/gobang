@@ -7,7 +7,7 @@ import multiprocessing as mp
 N = 7
 M = 4
 
-@numba.jit
+# @numba.jit
 def winning(board):
     tf = False
 
@@ -40,7 +40,51 @@ def winning(board):
                 break
     return tf
 
-@numba.jit
+
+def reward(board, action, turn):
+    tmp = board.copy()
+    tmp[action[0], action[1]] = 1
+    reward = 0
+    # winning state
+    if winning(tmp.flatten()):
+        if turn:
+            reward = 1
+        else:
+            reward = -1
+    elif (tmp != 0).all():
+        reward = -0.1
+    return reward
+
+def getFeature(board, action, future=False):
+    'board: board now, action: one action'
+    # 0 0 0 1 -1 1 0 0 0' s array
+    # 0 0 0
+    # 1-1 1
+    # 0 0 0
+
+    tmp = board.copy()
+    if not future:
+        tmp[action[0], action[1]] = 1
+    else:
+        tmp[action[0], action[1]] = -1
+    # use future as a parameter
+    feature = np.hstack((tmp.flatten(), np.array([future])))
+    return feature
+
+
+def getFeatures(board, actions, future=False):
+    'board: board now, actions: can put there'
+    # use next board(after-an-action) state  as parameters
+    Features = []
+    s = actions.shape[1]
+    for i in range(s):
+        feature = getFeature(board, actions[:, i], future)
+        Features.append(feature)
+    else:
+        Features = np.array(Features)
+    return Features
+
+# @numba.jit
 def game(weights):
 
     # parameters
@@ -56,71 +100,42 @@ def game(weights):
             board = -board
 
         # can move
-        places = np.where(board == 0)
+        actions = np.array(np.where(board == 0))
 
         # set algorithm here.
 
-        # as feature vector
-        Boards = []
-        for i in range(places[0].size):
-            tmp = board.copy()
-            tmp[places[0][i], places[1][i]] = 1
-            Boards.append(tmp.flatten())
+        # as feature vectors
+        features = getFeatures(board, actions)
+        r = np.argmax(weights.dot(features.transpose()))
+        # r = np.random.randint(actions[0].size)
 
-        Boards = np.array(Boards)
+        action = actions[:, r]
+        feature = features[r, :]
 
-        # 0 0 0 1 -1 1 0 0 0' s array
-        # 0 0 0
-        # 1-1 1
-        # 0 0 0
-        r = np.argmax(weights.dot(Boards.transpose()))
-
-        # r = np.random.randint(places[0].size)
-
-        # put
-        board[places[0][r], places[1][r]] = 1
-
-        Reward = 0
-        # winning state
-        win = winning(board.flatten())
-        if win:
-            if turn:
-                # print("white")
-                Reward = 1
-            else:
-                # print("black")
-                Reward = -1
+        Reward = reward(board, action, turn)
 
         # update weights
+
+        # all masses are filled, win / lose
         if Reward != 0:
-            weights += alpha * (Reward - weights.dot(board.flatten())) * board.reshape(1, board.size)
+            weights += alpha * (Reward - weights.dot(feature)) * feature.reshape(1, feature.size)
             return weights
 
-        # all masses are filled.
-        elif (board != 0).all():
-            # print("draw")
-            weights += alpha * (Reward - weights.dot(board.flatten())) * board.reshape(1, board.size)
-            return weights
 
+        # else
         else:
             nextboard = board.copy()
-            nextboard = -nextboard
-
+            nextboard[action[0], action[1]] = 1
             # can move
-            places = np.where(nextboard == 0)
-
+            # nextboard = -nextboard
+            nextactions = np.array(np.where(nextboard == 0))
             # set algorithm here.
-            Boards = []
-            for i in range(places[0].size):
-                tmp = nextboard.copy()
-                tmp[places[0][i], places[1][i]] = 1
-                Boards.append(tmp.flatten())
+            nextfeatures = getFeatures(nextboard, nextactions, future=True)
 
-            Boards = np.array(Boards)
+            weights += alpha * (Reward + gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
 
-            weights += alpha * (Reward + gamma * np.max(weights.dot(Boards.transpose())) - weights.dot(board.flatten())) * board.reshape(1, board.size)
-
-
+        # put
+        board[action[0], action[1]] = 1
 
         # restore black and white
         if not turn:
@@ -141,24 +156,18 @@ def play(weights1, weights2):
             board = -board
 
         # can move
-        places = np.where(board == 0)
+        actions = np.array(np.where(board == 0))
 
         # set algorithm here.
-        Boards = []
-        for i in range(places[0].size):
-            tmp = board.copy()
-            tmp[places[0][i], places[1][i]] = 1
-            Boards.append(tmp.flatten())
-
-        Boards = np.array(Boards)
+        features = getFeatures(board, actions)
 
         if turn:
-            r = np.argmax(weights1.dot(Boards.transpose()))
+            r = np.argmax(weights1.dot(features.transpose()))
         else:
-            r = np.argmax(weights2.dot(Boards.transpose()))
+            r = np.argmax(weights2.dot(features.transpose()))
 
         # put
-        board[places[0][r], places[1][r]] = 1
+        board[actions[0][r], actions[1][r]] = 1
 
         Reward = 0
         # winning state
@@ -175,7 +184,7 @@ def play(weights1, weights2):
         if not turn:
             board = -board
 
-        # print(places[0][r], places[1][r])
+        # print(actions[0][r], actions[1][r])
         # print(board)
 
 
@@ -208,7 +217,7 @@ def main(queue, weights):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(100):
+    for i in range(1):
         # print(weights)
         weights = game(weights)
 
@@ -224,9 +233,9 @@ if __name__ == '__main__':
     # board 0: blank, 1: white, -1: black
     result = []
 
-    testSize = 3
+    testSize = 1
     queue = mp.Queue()
-    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N))) for i in range(testSize)]
+    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N+1)/100)) for i in range(testSize)]
 
     pc = 0
     while pc < min(mp.cpu_count(), testSize):
