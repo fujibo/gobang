@@ -1,13 +1,13 @@
 import numpy as np
 import numba
 import multiprocessing as mp
-
+import time
 # NxN bang
 # M moku
 N = 7
 M = 4
 
-# @numba.jit
+@numba.jit(numba.b1(numba.u1[:]))
 def winning(board):
     tf = False
 
@@ -40,7 +40,7 @@ def winning(board):
                 break
     return tf
 
-
+@numba.jit(numba.f8(numba.u1[:], numba.i8[:], numba.b1))
 def reward(board, action, turn):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
@@ -55,7 +55,8 @@ def reward(board, action, turn):
         reward = -0.1
     return reward
 
-def getFeature(board, action, future=False):
+@numba.jit(numba.u1[:](numba.u1[:], numba.i8[:], numba.b1))
+def getFeature(board, action, future):
     'board: board now, action: one action'
     # 0 0 0 1 -1 1 0 0 0' s array
     # 0 0 0
@@ -71,20 +72,13 @@ def getFeature(board, action, future=False):
     feature = np.hstack((tmp.flatten(), np.array([future])))
     return feature
 
-
-def getFeatures(board, actions, future=False):
+def getFeatures(board, actions, future):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
-    Features = []
-    s = actions.shape[1]
-    for i in range(s):
-        feature = getFeature(board, actions[:, i], future)
-        Features.append(feature)
-    else:
-        Features = np.array(Features)
+    Features = np.array([getFeature(board, actions[:, i], future) for i in range(actions.shape[1])])
     return Features
 
-# @numba.jit
+@numba.jit(numba.f8[:](numba.f8[:]))
 def game(weights):
 
     # parameters
@@ -105,7 +99,7 @@ def game(weights):
         # set algorithm here.
 
         # as feature vectors
-        features = getFeatures(board, actions)
+        features = getFeatures(board, actions, False)
         r = np.argmax(weights.dot(features.transpose()))
         # r = np.random.randint(actions[0].size)
 
@@ -130,7 +124,7 @@ def game(weights):
             # nextboard = -nextboard
             nextactions = np.array(np.where(nextboard == 0))
             # set algorithm here.
-            nextfeatures = getFeatures(nextboard, nextactions, future=True)
+            nextfeatures = getFeatures(nextboard, nextactions, True)
 
             weights += alpha * (Reward + gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
 
@@ -159,7 +153,7 @@ def play(weights1, weights2):
         actions = np.array(np.where(board == 0))
 
         # set algorithm here.
-        features = getFeatures(board, actions)
+        features = getFeatures(board, actions, False)
 
         if turn:
             r = np.argmax(weights1.dot(features.transpose()))
@@ -217,7 +211,7 @@ def main(queue, weights):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(1):
+    for i in range(10):
         # print(weights)
         weights = game(weights)
 
@@ -233,11 +227,12 @@ if __name__ == '__main__':
     # board 0: blank, 1: white, -1: black
     result = []
 
-    testSize = 1
+    testSize = 4
     queue = mp.Queue()
-    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N+1)/100)) for i in range(testSize)]
+    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N+1)/10)) for i in range(testSize)]
 
-    pc = 0
+    start = time.time()
+    pc = 0 # work as program counter
     while pc < min(mp.cpu_count(), testSize):
         ps[pc].start()
         pc += 1
@@ -249,6 +244,7 @@ if __name__ == '__main__':
             ps[pc].start()
             pc += 1
 
+    print(time.time() - start, "seconds")
     print(result)
     result = np.array(result)
-    print(np.sum(result==1), "-- win, ", np.sum(result==-1), "-- lose, ", np.sum(result==0), "-- draw")
+    print("for init, ", np.sum(result==1), "-- win, ", np.sum(result==-1), "-- lose, ", np.sum(result==0), "-- draw")
