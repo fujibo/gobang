@@ -40,17 +40,14 @@ def winning(board):
                 break
     return tf
 
-@numba.jit(numba.f8(numba.u1[:], numba.i8[:], numba.b1))
-def reward(board, action, turn):
+@numba.jit(numba.f8(numba.u1[:], numba.i8[:]))
+def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
     reward = 0
     # winning state
     if winning(tmp.flatten()):
-        if turn:
-            reward = 1
-        else:
-            reward = -1
+        reward = 1
     elif (tmp != 0).all():
         reward = -0.1
     return reward
@@ -107,11 +104,11 @@ def game(weights):
         action = actions[:, r]
         feature = features[r, :]
 
-        Reward = reward(board, action, turn)
+        Reward = reward(board, action)
 
         # update weights
 
-        # all masses are filled, win / lose
+        # all masses are filled, win
         if Reward != 0:
             weights += alpha * (Reward - weights.dot(feature)) * feature.reshape(1, feature.size)
             return weights
