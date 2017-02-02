@@ -204,7 +204,7 @@ def dispBoard(board):
         else:
             print("")
 
-def main(weights):
+def main(queue, weights):
     weights0 = weights.copy()
 
     # reinforced learning
@@ -216,16 +216,30 @@ def main(weights):
         # display result
         b, res = play(weights0, weights)
         dispBoard(b)
-        return res
+        queue.put(res)
+        # return res
 
 if __name__ == '__main__':
 
     # board 0: blank, 1: white, -1: black
     result = []
 
-    testSize = 100
-    pool = mp.Pool(testSize)
-    args = np.random.rand(1, N*N, testSize)
-    result = pool.map(main, iterable=[args[:, :, i] for i in range(testSize)])
+    testSize = 3
+    queue = mp.Queue()
+    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N))) for i in range(testSize)]
+
+    pc = 0
+    while pc < min(mp.cpu_count(), testSize):
+        ps[pc].start()
+        pc += 1
+
+    result = []
+    for i in range(testSize):
+        result.append(queue.get())
+        if pc < testSize:
+            ps[pc].start()
+            pc += 1
 
     print(result)
+    result = np.array(result)
+    print(np.sum(result==1), "-- win, ", np.sum(result==-1), "-- lose, ", np.sum(result==0), "-- draw")
