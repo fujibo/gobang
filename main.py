@@ -68,6 +68,7 @@ def getFeature(board, action, future):
         tmp[action[0], action[1]] = 1
     else:
         tmp[action[0], action[1]] = -1
+
     # use future as a parameter
     feature = np.hstack((tmp.flatten(), np.array([future])))
     return feature
@@ -126,7 +127,7 @@ def game(weights):
             # set algorithm here.
             nextfeatures = getFeatures(nextboard, nextactions, True)
 
-            weights += alpha * (Reward + gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
+            weights += alpha * (Reward + gamma * np.min(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
 
         # put
         board[action[0], action[1]] = 1
