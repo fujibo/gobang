@@ -76,28 +76,20 @@ def getFeature(board, action, future):
     i = 0
     for mass_idx in range(tmp.size):
         # white
+        size = tmp[mass_idx+1:].size
         if tmp[mass_idx] == 1:
-            for other in tmp[mass_idx+1:]:
-                if other == 1:
-                    relation[i, 0] = 1
-                elif other == -1:
-                    relation[i, 1] = 1
-                else:
-                    relation[i, 3] = 1
-                i += 1
+            relation[i:i+size, 0] = (tmp[mass_idx+1:] == 1)
+            relation[i:i+size, 1] = (tmp[mass_idx+1:] == -1)
+            relation[i:i+size, 3] = (tmp[mass_idx+1:] == 0)
+            i += size
         # black
         elif tmp[mass_idx] == -1:
-            for other in tmp[mass_idx+1:]:
-                if other == 1:
-                    relation[i, 1] = 1
-                elif other == -1:
-                    relation[i, 2] = 1
-                else:
-                    relation[i, 3] = -1
-                i += 1
+            relation[i:i+size, 1] = (tmp[mass_idx+1:] == 1)
+            relation[i:i+size, 2] = (tmp[mass_idx+1:] == -1)
+            relation[i:i+size, 3] = (tmp[mass_idx+1:] == 0)
+            i += size
         # blank
         else:
-            size = tmp[mass_idx+1:].size
             relation[i:i+size, 3] = tmp[mass_idx+1:]
             i += size
 
@@ -105,10 +97,13 @@ def getFeature(board, action, future):
     feature = np.hstack((tmp, np.array([future]), relation.flatten()))
     return feature
 
+@numba.jit(numba.i1[:](numba.i1[:], numba.i8[:], numba.b1))
 def getFeatures(board, actions, future):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
-    Features = np.array([getFeature(board, actions[:, i], future) for i in range(actions.shape[1])])
+    Features = np.zeros((actions.shape[1], Fsize), dtype=np.int8)
+    for i in range(actions.shape[1]):
+        Features[i, :] = getFeature(board, actions[:, i], future)
     return Features
 
 @numba.jit(numba.f8[:](numba.f8[:]))
@@ -184,8 +179,6 @@ def play(weights1, weights2):
 
         # can move
         actions = np.array(np.where(board == 0))
-
-        # set algorithm here.
         features = getFeatures(board, actions, False)
 
         if turn:
@@ -244,7 +237,7 @@ def main(queue, weights):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(10):
+    for i in range(100):
         # print(weights)
         if i == 10:
             weights0 = weights.copy()
@@ -252,8 +245,10 @@ def main(queue, weights):
 
     else:
         # display result
+        pstart = time.time()
         b, res = play(weights0, weights)
         dispBoard(b)
+        print("play time", time.time() - pstart)
         queue.put(res)
         # return res
 
