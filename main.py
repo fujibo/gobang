@@ -4,10 +4,12 @@ import multiprocessing as mp
 import time
 # NxN bang
 # M moku
+# board 0: blank, 1: white, -1: black
 N = 7
 M = 4
+Fsize = N*N * (N*N-1) * 2 + 1 + N*N
 
-@numba.jit(numba.b1(numba.u1[:]))
+@numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
     tf = False
 
@@ -40,7 +42,7 @@ def winning(board):
                 break
     return tf
 
-@numba.jit(numba.f8(numba.u1[:], numba.i8[:]))
+@numba.jit(numba.f8(numba.i1[:], numba.i8[:]))
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
@@ -52,7 +54,7 @@ def reward(board, action):
         reward = -0.1
     return reward
 
-@numba.jit(numba.u1[:](numba.u1[:], numba.i8[:], numba.b1))
+@numba.jit(numba.i1[:](numba.i1[:], numba.i8[:], numba.b1))
 def getFeature(board, action, future):
     'board: board now, action: one action'
     # 0 0 0 1 -1 1 0 0 0' s array
@@ -66,8 +68,41 @@ def getFeature(board, action, future):
     else:
         tmp[action[0], action[1]] = -1
 
+    tmp = tmp.flatten()
+
+    # use two masses relation as parameters
+    # (N*N-1)*(N*N)/2  x 4 <all the combinations> x <W-W, W-B, B-B, blank>
+    relation = np.zeros(((N*N) * (N*N-1)//2, 4), dtype=np.int8)
+    i = 0
+    for mass_idx in range(tmp.size):
+        # white
+        if tmp[mass_idx] == 1:
+            for other in tmp[mass_idx+1:]:
+                if other == 1:
+                    relation[i, 0] = 1
+                elif other == -1:
+                    relation[i, 1] = 1
+                else:
+                    relation[i, 3] = 1
+                i += 1
+        # black
+        elif tmp[mass_idx] == -1:
+            for other in tmp[mass_idx+1:]:
+                if other == 1:
+                    relation[i, 1] = 1
+                elif other == -1:
+                    relation[i, 2] = 1
+                else:
+                    relation[i, 3] = -1
+                i += 1
+        # blank
+        else:
+            size = tmp[mass_idx+1:].size
+            relation[i:i+size, 3] = tmp[mass_idx+1:]
+            i += size
+
     # use future as a parameter
-    feature = np.hstack((tmp.flatten(), np.array([future])))
+    feature = np.hstack((tmp, np.array([future]), relation.flatten()))
     return feature
 
 def getFeatures(board, actions, future):
@@ -211,6 +246,8 @@ def main(queue, weights):
     # reinforced learning
     for i in range(10):
         # print(weights)
+        if i == 10:
+            weights0 = weights.copy()
         weights = game(weights)
 
     else:
@@ -222,12 +259,11 @@ def main(queue, weights):
 
 if __name__ == '__main__':
 
-    # board 0: blank, 1: white, -1: black
     result = []
 
     testSize = 4
     queue = mp.Queue()
-    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, N*N+1)/10)) for i in range(testSize)]
+    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10)) for i in range(testSize)]
 
     start = time.time()
     pc = 0 # work as program counter
