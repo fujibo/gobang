@@ -42,7 +42,7 @@ def winning(board):
                 break
     return tf
 
-@numba.jit(numba.f8(numba.i1[:], numba.i8[:]))
+@numba.jit(numba.f8(numba.i1[:, :], numba.i8[:, :]))
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
@@ -54,7 +54,7 @@ def reward(board, action):
         reward = -0.1
     return reward
 
-@numba.jit(numba.i1[:](numba.i1[:], numba.i8[:], numba.b1))
+@numba.jit(numba.i1[:](numba.i1[:, :], numba.i8[:, :], numba.b1))
 def getFeature(board, action, future):
     'board: board now, action: one action'
     # 0 0 0 1 -1 1 0 0 0' s array
@@ -97,7 +97,7 @@ def getFeature(board, action, future):
     feature = np.hstack((tmp, np.array([future]), relation.flatten()))
     return feature
 
-@numba.jit(numba.i1[:](numba.i1[:], numba.i8[:], numba.b1))
+@numba.jit(numba.i1[:, :](numba.i1[:, :], numba.i8[:, :], numba.b1))
 def getFeatures(board, actions, future):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
@@ -238,7 +238,7 @@ def main(queue, weights):
 
     # reinforced learning
     for i in range(1000):
-        # print(weights)
+        print(weights)
         if i == 10:
             weights0 = weights.copy()
         weights = game(weights)
