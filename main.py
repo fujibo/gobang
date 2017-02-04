@@ -107,7 +107,7 @@ def getFeatures(board, actions):
 def game(weights):
 
     # parameters
-    alpha = 0.002
+    alpha = 0.001
     gamma = 0.9
 
     board = np.zeros((N, N), dtype=np.int8)
@@ -233,20 +233,24 @@ def dispBoard(board):
         else:
             print("")
 
-def main(queue, weights):
+def main(queue, weights, pid):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(1000):
-        print(weights)
-        if i % 100 == 0:
-            np.save('weights{}.npy'.format(i), weights)
+    for i in range(10000):
+        if i % 1000 == 0:
+            np.save('weights{}_{}.npy'.format(i, pid), weights)
+            print(weights)
             print(i)
-        if i == 10:
+            if np.max(np.abs(weights)) > 1000:
+                queue.put(-100)
+                return
+        if i == 1000:
             weights0 = weights.copy()
         weights = game(weights)
     else:
         # display result
+        np.save('weights10000_{}.npy'.format(pid), weights)
         pstart = time.time()
         b, res, moved = play(weights0, weights)
         dispBoard(b)
@@ -259,9 +263,9 @@ if __name__ == '__main__':
 
     result = []
 
-    testSize = 1
+    testSize = 6
     queue = mp.Queue()
-    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10)) for i in range(testSize)]
+    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
 
     start = time.time()
     pc = 0 # work as program counter
