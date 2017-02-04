@@ -237,7 +237,7 @@ def main(queue, weights):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(100):
+    for i in range(1000):
         # print(weights)
         if i == 10:
             weights0 = weights.copy()
@@ -256,7 +256,7 @@ if __name__ == '__main__':
 
     result = []
 
-    testSize = 4
+    testSize = 1
     queue = mp.Queue()
     ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10)) for i in range(testSize)]
 
