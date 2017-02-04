@@ -7,7 +7,7 @@ import time
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N*N * (N*N-1) * 2 + 1 + N*N
+Fsize = N*N * (N*N-1) * 2 + N*N
 
 @numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
@@ -54,8 +54,8 @@ def reward(board, action):
         reward = -0.1
     return reward
 
-@numba.jit(numba.i1[:](numba.i1[:, :], numba.i8[:, :], numba.b1))
-def getFeature(board, action, future):
+@numba.jit(numba.i1[:](numba.i1[:, :], numba.i8[:, :]))
+def getFeature(board, action):
     'board: board now, action: one action'
     # 0 0 0 1 -1 1 0 0 0' s array
     # 0 0 0
@@ -63,10 +63,7 @@ def getFeature(board, action, future):
     # 0 0 0
 
     tmp = board.copy()
-    if not future:
-        tmp[action[0], action[1]] = 1
-    else:
-        tmp[action[0], action[1]] = -1
+    tmp[action[0], action[1]] = 1
 
     tmp = tmp.flatten()
 
@@ -94,23 +91,23 @@ def getFeature(board, action, future):
             i += size
 
     # use future as a parameter
-    feature = np.hstack((tmp, np.array([future]), relation.flatten()))
+    feature = np.hstack((tmp, relation.flatten()))
     return feature
 
-@numba.jit(numba.i1[:, :](numba.i1[:, :], numba.i8[:, :], numba.b1))
-def getFeatures(board, actions, future):
+@numba.jit(numba.i1[:, :](numba.i1[:, :], numba.i8[:, :]))
+def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
     Features = np.zeros((actions.shape[1], Fsize), dtype=np.int8)
     for i in range(actions.shape[1]):
-        Features[i, :] = getFeature(board, actions[:, i], future)
+        Features[i, :] = getFeature(board, actions[:, i])
     return Features
 
 @numba.jit(numba.f8[:](numba.f8[:]))
 def game(weights):
 
     # parameters
-    alpha = 0.01
+    alpha = 0.002
     gamma = 0.9
 
     board = np.zeros((N, N), dtype=np.int8)
@@ -127,7 +124,7 @@ def game(weights):
         # set algorithm here.
 
         # as feature vectors
-        features = getFeatures(board, actions, False)
+        features = getFeatures(board, actions)
         r = np.argmax(weights.dot(features.transpose()))
         # r = np.random.randint(actions[0].size)
 
@@ -149,12 +146,13 @@ def game(weights):
             nextboard = board.copy()
             nextboard[action[0], action[1]] = 1
             # can move
-            # nextboard = -nextboard
+            nextboard = -nextboard
             nextactions = np.array(np.where(nextboard == 0))
             # set algorithm here.
-            nextfeatures = getFeatures(nextboard, nextactions, True)
+            nextfeatures = getFeatures(nextboard, nextactions)
 
-            weights += alpha * (Reward + gamma * np.min(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
+            # reward - (hoge) because of opponent turn
+            weights += alpha * (Reward - gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
 
         # put
         board[action[0], action[1]] = 1
@@ -170,6 +168,7 @@ def game(weights):
 
 def play(weights1, weights2):
     board = np.zeros((N, N), dtype=np.int8)
+    moved = []
     turn = True
 
     while True:
@@ -179,7 +178,7 @@ def play(weights1, weights2):
 
         # can move
         actions = np.array(np.where(board == 0))
-        features = getFeatures(board, actions, False)
+        features = getFeatures(board, actions)
 
         if turn:
             r = np.argmax(weights1.dot(features.transpose()))
@@ -187,6 +186,7 @@ def play(weights1, weights2):
             r = np.argmax(weights2.dot(features.transpose()))
 
         # put
+        moved.append(actions[:, r])
         board[actions[0][r], actions[1][r]] = 1
 
         Reward = 0
@@ -210,12 +210,12 @@ def play(weights1, weights2):
 
         # end of the game
         if Reward != 0:
-            return (board, Reward)
+            return (board, Reward, moved)
 
         # all masses are filled.
         elif (board != 0).all():
             print("draw")
-            return (board, Reward)
+            return (board, Reward, moved)
 
         # end of this turn
         turn = not turn
@@ -239,15 +239,18 @@ def main(queue, weights):
     # reinforced learning
     for i in range(1000):
         print(weights)
+        if i % 100 == 0:
+            np.save('weights{}.npy'.format(i), weights)
+            print(i)
         if i == 10:
             weights0 = weights.copy()
         weights = game(weights)
-
     else:
         # display result
         pstart = time.time()
-        b, res = play(weights0, weights)
+        b, res, moved = play(weights0, weights)
         dispBoard(b)
+        print(moved)
         print("play time", time.time() - pstart)
         queue.put(res)
         # return res
