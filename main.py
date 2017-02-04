@@ -7,7 +7,7 @@ import time
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N*N * (N*N-1) * 2 + N*N
+Fsize = N*N * (N*N-1) *3 // 2 + N*N
 
 @numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
@@ -69,7 +69,7 @@ def getFeature(board, action):
 
     # use two masses relation as parameters
     # (N*N-1)*(N*N)/2  x 4 <all the combinations> x <W-W, W-B, B-B, blank>
-    relation = np.zeros(((N*N) * (N*N-1)//2, 4), dtype=np.int8)
+    relation = np.zeros(((N*N) * (N*N-1)//2, 3), dtype=np.int8)
     i = 0
     for mass_idx in range(tmp.size):
         # white
@@ -77,17 +77,17 @@ def getFeature(board, action):
         if tmp[mass_idx] == 1:
             relation[i:i+size, 0] = (tmp[mass_idx+1:] == 1)
             relation[i:i+size, 1] = (tmp[mass_idx+1:] == -1)
-            relation[i:i+size, 3] = (tmp[mass_idx+1:] == 0)
+            relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
             i += size
         # black
         elif tmp[mass_idx] == -1:
             relation[i:i+size, 1] = (tmp[mass_idx+1:] == 1)
-            relation[i:i+size, 2] = (tmp[mass_idx+1:] == -1)
-            relation[i:i+size, 3] = (tmp[mass_idx+1:] == 0)
+            relation[i:i+size, 0] = -(tmp[mass_idx+1:] == -1).astype(np.int8)
+            relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
             i += size
         # blank
         else:
-            relation[i:i+size, 3] = tmp[mass_idx+1:]
+            relation[i:i+size, 2] = tmp[mass_idx+1:]
             i += size
 
     # use future as a parameter
@@ -238,8 +238,9 @@ def main(queue, weights, pid):
 
     # reinforced learning
     for i in range(10000):
+        print(weights)
         if i % 1000 == 0:
-            np.save('weights{}_{}.npy'.format(i, pid), weights)
+            # np.save('weights{}_{}.npy'.format(i, pid), weights)
             print(weights)
             print(i)
             if np.max(np.abs(weights)) > 1000:
@@ -250,7 +251,7 @@ def main(queue, weights, pid):
         weights = game(weights)
     else:
         # display result
-        np.save('weights10000_{}.npy'.format(pid), weights)
+        # np.save('weights10000_{}.npy'.format(pid), weights)
         pstart = time.time()
         b, res, moved = play(weights0, weights)
         dispBoard(b)
@@ -263,7 +264,7 @@ if __name__ == '__main__':
 
     result = []
 
-    testSize = 6
+    testSize = 1
     queue = mp.Queue()
     ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
 
