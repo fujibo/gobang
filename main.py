@@ -5,8 +5,8 @@ import time
 # NxN bang
 # M moku
 # board 0: blank, 1: white, -1: black
-N = 10
-M = 5
+N = 7
+M = 4
 Fsize = N*N * (N*N-1) *3 // 2 + N*N
 
 @numba.jit(numba.b1(numba.i1[:]))
@@ -275,7 +275,6 @@ def test(weights):
     b[2, 2] = 1
     b[2, 3] = 1
     b[2, 4] = 1
-    b[2, 5] = 1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
 
@@ -288,16 +287,20 @@ if __name__ == '__main__':
 
     result = []
 
-    testSize = 1
     queue = mp.Queue()
-    # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
-    ps = [mp.Process(target=main, args=(queue, np.zeros((1, Fsize)), i)) for i in range(testSize)]
-
-    start = time.time()
+    testSize = 1
     pc = 0 # work as program counter
-    while pc < min(mp.cpu_count(), testSize):
-        ps[pc].start()
+    start = time.time()
+    if testSize == 1:
+        main(queue, np.zeros((1, Fsize)), 0)
         pc += 1
+    else:
+        # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
+        ps = [mp.Process(target=main, args=(queue, np.zeros((1, Fsize)), i)) for i in range(testSize)]
+
+        while pc < min(mp.cpu_count(), testSize):
+            ps[pc].start()
+            pc += 1
 
     result = []
     for i in range(testSize):
