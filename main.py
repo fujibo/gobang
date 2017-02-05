@@ -49,9 +49,9 @@ def reward(board, action):
     reward = 0
     # winning state
     if winning(tmp.flatten()):
-        reward = 1
+        reward = 10.0
     elif (tmp != 0).all():
-        reward = -0.1
+        reward = -1.0
     return reward
 
 @numba.jit(numba.i1[:](numba.i1[:, :], numba.i8[:, :]))
@@ -68,7 +68,7 @@ def getFeature(board, action):
     tmp = tmp.flatten()
 
     # use two masses relation as parameters
-    # (N*N-1)*(N*N)/2  x 4 <all the combinations> x <W-W, W-B, B-B, blank>
+    # (N*N-1)*(N*N)/2  x 3 <all the combinations> x <(WW, BB), (WB, BW), blank>
     relation = np.zeros(((N*N) * (N*N-1)//2, 3), dtype=np.int8)
     i = 0
     for mass_idx in range(tmp.size):
@@ -81,9 +81,9 @@ def getFeature(board, action):
             i += size
         # black
         elif tmp[mass_idx] == -1:
-            relation[i:i+size, 1] = (tmp[mass_idx+1:] == 1)
+            relation[i:i+size, 1] = -(tmp[mass_idx+1:] == 1).astype(np.int8)
             relation[i:i+size, 0] = -(tmp[mass_idx+1:] == -1).astype(np.int8)
-            relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
+            relation[i:i+size, 2] = -(tmp[mass_idx+1:] == 0).astype(np.int8)
             i += size
         # blank
         else:
@@ -103,11 +103,11 @@ def getFeatures(board, actions):
         Features[i, :] = getFeature(board, actions[:, i])
     return Features
 
-@numba.jit(numba.f8[:](numba.f8[:]))
+# @numba.jit(numba.f8[:](numba.f8[:]))
 def game(weights):
 
     # parameters
-    alpha = 0.001
+    alpha = 0.003
     gamma = 0.9
 
     board = np.zeros((N, N), dtype=np.int8)
@@ -137,7 +137,9 @@ def game(weights):
 
         # all masses are filled, win
         if Reward != 0:
-            weights += alpha * (Reward - weights.dot(feature)) * feature.reshape(1, feature.size)
+            diff = Reward - weights.dot(feature)
+            print("\n", Reward, diff)
+            weights += alpha * diff * feature.reshape(1, feature.size)
             return weights
 
 
@@ -151,8 +153,11 @@ def game(weights):
             # set algorithm here.
             nextfeatures = getFeatures(nextboard, nextactions)
 
+            diff = (Reward - gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature))
+            print(weights.dot(feature))
+            print(diff, end="")
             # reward - (hoge) because of opponent turn
-            weights += alpha * (Reward - gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature)) * feature.reshape(1, feature.size)
+            weights += alpha * diff * feature.reshape(1, feature.size)
 
         # put
         board[action[0], action[1]] = 1
@@ -273,6 +278,17 @@ def test(weights):
     b[2, 2] = 1
     b[2, 3] = 1
     b[2, 4] = 1
+    a = np.array(np.where(b == 0))
+    fs = getFeatures(b, a)
+
+    score = weights.dot(fs.transpose())
+    print(score)
+    print(np.argmax(score), "<- idx, ", np.max(score), "<- value")
+    print(a[:, np.argmax(score)])
+    b = np.zeros((N, N), dtype=np.int8)
+    b[2, 2] = -1
+    b[2, 3] = -1
+    b[2, 4] = -1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
 
