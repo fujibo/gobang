@@ -5,8 +5,8 @@ import time
 # NxN bang
 # M moku
 # board 0: blank, 1: white, -1: black
-N = 7
-M = 4
+N = 10
+M = 5
 Fsize = N*N * (N*N-1) *3 // 2 + N*N
 
 @numba.jit(numba.b1(numba.i1[:]))
@@ -138,7 +138,6 @@ def game(weights):
         # all masses are filled, win
         if Reward != 0:
             diff = Reward - weights.dot(feature)
-            print("\n", Reward, diff)
             weights += alpha * diff * feature.reshape(1, feature.size)
             return weights
 
@@ -154,8 +153,6 @@ def game(weights):
             nextfeatures = getFeatures(nextboard, nextactions)
 
             diff = (Reward - gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature))
-            print(weights.dot(feature))
-            print(diff, end="")
             # reward - (hoge) because of opponent turn
             weights += alpha * diff * feature.reshape(1, feature.size)
 
@@ -278,17 +275,7 @@ def test(weights):
     b[2, 2] = 1
     b[2, 3] = 1
     b[2, 4] = 1
-    a = np.array(np.where(b == 0))
-    fs = getFeatures(b, a)
-
-    score = weights.dot(fs.transpose())
-    print(score)
-    print(np.argmax(score), "<- idx, ", np.max(score), "<- value")
-    print(a[:, np.argmax(score)])
-    b = np.zeros((N, N), dtype=np.int8)
-    b[2, 2] = -1
-    b[2, 3] = -1
-    b[2, 4] = -1
+    b[2, 5] = 1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
 
