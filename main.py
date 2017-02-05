@@ -237,17 +237,25 @@ def main(queue, weights, pid):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(10000):
-        print(weights)
-        if i % 1000 == 0:
+    for i in range(1000):
+        if i % 10 == 0:
+            weights0 = weights.copy()
+            print(weights0)
+            test(weights0)
+        if i % 20 == 5:
+            pstart = time.time()
+            b, res, moved = play(weights0, weights)
+            dispBoard(b)
+            print(moved)
+            print("play time", time.time() - pstart)
+
+        if i % 100 == 0:
             # np.save('weights{}_{}.npy'.format(i, pid), weights)
             print(weights)
             print(i)
-            if np.max(np.abs(weights)) > 1000:
-                queue.put(-100)
-                return
-        if i == 1000:
-            weights0 = weights.copy()
+        if np.max(np.abs(weights)) > 1000:
+            queue.put(-100)
+            return
         weights = game(weights)
     else:
         # display result
@@ -260,13 +268,27 @@ def main(queue, weights, pid):
         queue.put(res)
         # return res
 
+def test(weights):
+    b = np.zeros((N, N), dtype=np.int8)
+    b[2, 2] = 1
+    b[2, 3] = 1
+    b[2, 4] = 1
+    a = np.array(np.where(b == 0))
+    fs = getFeatures(b, a)
+
+    score = weights.dot(fs.transpose())
+    print(score)
+    print(np.argmax(score), "<- idx, ", np.max(score), "<- value")
+    print(a[:, np.argmax(score)])
+
 if __name__ == '__main__':
 
     result = []
 
     testSize = 1
     queue = mp.Queue()
-    ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
+    # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
+    ps = [mp.Process(target=main, args=(queue, np.zeros((1, Fsize)), i)) for i in range(testSize)]
 
     start = time.time()
     pc = 0 # work as program counter
