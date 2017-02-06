@@ -143,6 +143,8 @@ def game(weights):
         # all masses are filled, win
         if Reward != 0:
             diff = Reward - weights.dot(feature)
+            if np.abs(diff) < 0.1:
+                print(turn, diff)
             weights += alpha * diff * feature.reshape(1, feature.size)
             return weights
 
@@ -244,20 +246,20 @@ def main(queue, weights, pid):
     weights0 = weights.copy()
 
     # reinforced learning
-    for i in range(1000):
-        if i % 10 == 0:
+    for i in range(10000):
+        if i % 100 == 0:
             weights0 = weights.copy()
             print(weights0)
             test(weights0)
-        if i % 20 == 5:
+        if i % 200 == 5:
             pstart = time.time()
             b, res, moved = play(weights0, weights)
             dispBoard(b)
             print(moved)
             print("play time", time.time() - pstart)
 
-        if i % 100 == 0:
-            # np.save('weights{}_{}.npy'.format(i, pid), weights)
+        if i % 1000 == 0:
+            np.save('./weight/weights2{}_{}.npy'.format(i, pid), weights)
             print(weights)
             print(i)
         if np.max(np.abs(weights)) > 1000:
@@ -266,7 +268,7 @@ def main(queue, weights, pid):
         weights = game(weights)
     else:
         # display result
-        # np.save('weights10000_{}.npy'.format(pid), weights)
+        np.save('./weight/weights30000_{}.npy'.format(pid), weights)
         pstart = time.time()
         b, res, moved = play(weights0, weights)
         dispBoard(b)
@@ -297,7 +299,8 @@ if __name__ == '__main__':
     pc = 0 # work as program counter
     start = time.time()
     if testSize == 1:
-        main(queue, np.zeros((1, Fsize)), 0)
+        w = np.load('./weight/weights20000_0.npy')
+        main(queue, w, 0)
         pc += 1
     else:
         # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
