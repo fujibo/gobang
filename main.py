@@ -49,7 +49,8 @@ def reward(board, action):
     reward = 0
     # winning state
     if winning(tmp.flatten()):
-        reward = 10.0
+        # reward = 11.0 - (N*N - np.sum(tmp == 0)) // N
+        reward = 4.0 + np.sum(tmp == 0) // N
     elif (tmp != 0).all():
         reward = -1.0
     return reward
@@ -109,6 +110,7 @@ def game(weights):
     # parameters
     alpha = 0.003
     gamma = 0.9
+    epsilon = 0.15
 
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
@@ -120,13 +122,16 @@ def game(weights):
 
         # can move
         actions = np.array(np.where(board == 0))
+        # as feature vectors
+        features = getFeatures(board, actions)
 
         # set algorithm here.
 
-        # as feature vectors
-        features = getFeatures(board, actions)
-        r = np.argmax(weights.dot(features.transpose()))
-        # r = np.random.randint(actions[0].size)
+        # epsilon-greedy
+        if np.random.rand() < epsilon:
+            r = np.random.randint(actions[0].size)
+        else:
+            r = np.argmax(weights.dot(features.transpose()))
 
         action = actions[:, r]
         feature = features[r, :]
