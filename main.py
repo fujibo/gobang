@@ -108,9 +108,9 @@ def getFeatures(board, actions):
 def game(weights):
 
     # parameters
-    alpha = 0.003
+    alpha = 0.001
     gamma = 0.9
-    epsilon = 0.15
+    epsilon = 0.10
 
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
@@ -266,7 +266,7 @@ def main(queue, weights, pid):
         weights = game(weights)
     else:
         # display result
-        # np.save('weights10000_{}.npy'.format(pid), weights)
+        np.save('weights1000.npy', weights)
         pstart = time.time()
         b, res, moved = play(weights0, weights)
         dispBoard(b)
@@ -277,16 +277,18 @@ def main(queue, weights, pid):
 
 def test(weights):
     b = np.zeros((N, N), dtype=np.int8)
-    b[2, 2] = 1
-    b[2, 3] = 1
-    b[2, 4] = 1
+    b[3, 2] = 1
+    b[3, 3] = 1
+    b[3, 4] = 1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
 
     score = weights.dot(fs.transpose())
     print(score)
+    print(np.sum(weights >= 0), weights.size)
     print(np.argmax(score), "<- idx, ", np.max(score), "<- value")
     print(a[:, np.argmax(score)])
+
 
 if __name__ == '__main__':
 
@@ -297,7 +299,8 @@ if __name__ == '__main__':
     pc = 0 # work as program counter
     start = time.time()
     if testSize == 1:
-        main(queue, np.zeros((1, Fsize)), 0)
+        weight = np.random.rand(1, Fsize) / 10
+        main(queue, weight, 0)
         pc += 1
     else:
         # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
