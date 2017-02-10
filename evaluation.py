@@ -12,8 +12,7 @@ class MyChain(Chain):
     def __init__(self):
         super(MyChain, self).__init__(
             l1=L.Linear(49, 64),
-            l2=L.Linear(64, 32),
-            l3=L.Linear(32, 1),
+            l2=L.Linear(64, 1),
         )
     def __call__(self, x, y):
         return F.mean_squared_error(self.predict(x), y)
@@ -22,8 +21,8 @@ class MyChain(Chain):
         'return predict value only used in this NN'
         h1 = F.tanh(self.l1(x))
         h2 = F.tanh(self.l2(h1))
-        h3 = F.tanh(self.l3(h2))
-        return h3
+        # h3 = F.tanh(self.l3(h2))
+        return h2
 
     def get(self, x):
         'return predict value by float'

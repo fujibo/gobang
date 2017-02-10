@@ -60,42 +60,11 @@ def reward(board, action):
 @numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]))
 def getFeature(board, action):
     'board: board now, action: one action'
-    # 0 0 0 1 -1 1 0 0 0' s array
-    # 0 0 0
-    # 1-1 1
-    # 0 0 0
 
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
 
     tmp = tmp.flatten()
-
-    # use two masses relation as parameters
-    # (N*N-1)*(N*N)/2  x 3 <all the combinations> x <(WW, BB), (WB, BW), blank>
-    # relation = np.zeros(((N*N) * (N*N-1)//2, 3), dtype=np.int8)
-    # i = 0
-    # for mass_idx in range(tmp.size):
-    #     # white
-    #     size = tmp[mass_idx+1:].size
-    #     if tmp[mass_idx] == 1:
-    #         relation[i:i+size, 0] = (tmp[mass_idx+1:] == 1)
-    #         relation[i:i+size, 1] = (tmp[mass_idx+1:] == -1)
-    #         relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
-    #         i += size
-    #     # black
-    #     elif tmp[mass_idx] == -1:
-    #         relation[i:i+size, 1] = -(tmp[mass_idx+1:] == 1).astype(np.int8)
-    #         relation[i:i+size, 0] = -(tmp[mass_idx+1:] == -1).astype(np.int8)
-    #         relation[i:i+size, 2] = -(tmp[mass_idx+1:] == 0).astype(np.int8)
-    #         i += size
-    #     # blank
-    #     else:
-    #         relation[i:i+size, 2] = tmp[mass_idx+1:]
-    #         i += size
-    #
-    # # use future as a parameter
-    # feature = np.hstack((tmp, relation.flatten()))
-
     feature = tmp.astype(np.float32)
     return feature
 
@@ -103,9 +72,12 @@ def getFeature(board, action):
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
-    Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
+    Features = board.flatten().reshape(1, board.size).repeat(actions.shape[1], axis=0).astype(np.float32)
     for i in range(actions.shape[1]):
-        Features[i, :] = getFeature(board, actions[:, i])
+        Features[i, actions[0, i] + actions[1, i] * N] = 1
+    # Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
+    # for i in range(actions.shape[1]):
+    #     Features[i, :] = getFeature(board, actions[:, i])
     return Features
 
 # @numba.jit(numba.f8[:](numba.f8[:]))
@@ -261,7 +233,7 @@ def main(queue, pid):
     y_data = []
     data_size = 0
 
-    for i in range(1, 10000):
+    for i in range(1, 10001):
 
         xs, ys = game(model)
         num = len(ys)
@@ -270,10 +242,10 @@ def main(queue, pid):
         y_data += ys
         data_size += num
 
-        if i % 5 == 0:
+        if i % 1 == 0:
             model.cleargrads()
             # a x 49
-            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, 49))
+            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, Fsize))
             # a x 1
             y_ = Variable(np.array(y_data, dtype=np.float32).reshape(data_size, 1))
             loss = model(x_, y_)
@@ -282,12 +254,15 @@ def main(queue, pid):
 
             losses.append(loss.data)
 
+        if i % 5 == 0:
+            test(model)
+
             plt.plot(losses, 'b')
             plt.yscale('log')
             plt.pause(0.01)
 
-        # if i % 100 == 0:
-        #     serializers.save_npz('{}.model'.format(i), model)
+        if i % 1000 == 0:
+            serializers.save_npz('./params/{}.model'.format(i), model)
 
     # # reinforced learning
     # for i in range(1000):
@@ -321,19 +296,21 @@ def main(queue, pid):
     #     queue.put(res)
     #     # return res
 
-def test(weights):
+def test(model):
+    start = time.time()
     b = np.zeros((N, N), dtype=np.int8)
     b[3, 2] = 1
     b[3, 3] = 1
     b[3, 4] = 1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
-
-    score = weights.dot(fs.transpose())
+    score = model.get(fs)[:, 0]
     print(score)
-    print(np.sum(weights >= 0), weights.size)
-    print(np.argmax(score), "<- idx, ", np.max(score), "<- value")
-    print(a[:, np.argmax(score)])
+    idx = np.argmax(score)
+    # 22, 23 are desirable
+    print(idx, "<- idx, ", score[idx], "<- value")
+    # print(a[:, idx])
+    print(time.time() - start, "sec for all")
 
 
 if __name__ == '__main__':
