@@ -211,6 +211,7 @@ def play(weights1, weights2):
 
 def dispBoard(board):
     'display board'
+    print("")
     for i in range(N):
         for j in range(N):
             if board[i, j] == 1:
@@ -218,7 +219,7 @@ def dispBoard(board):
             elif board[i, j] == -1:
                 print("X", end="")
             else:
-                print(" ", end="")
+                print(".", end="")
         else:
             print("")
 

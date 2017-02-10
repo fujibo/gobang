@@ -3,30 +3,78 @@ import numba
 import multiprocessing as mp
 import time
 import main
+from evaluation import *
 # NxN bang
 # M moku
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N*N * (N*N-1) * 2 + N*N
+Fsize = N*N
+
+def play(model):
+
+    xs = []
+    ys = []
+    # parameters
+    gamma = 0.9
+    epsilon = 0
+
+    board = np.zeros((N, N), dtype=np.int8)
+    turn = True
+
+    while True:
+        # change black and white
+        if not turn:
+            board = -board
+            actions = np.array(np.where(board == 0))
+            r = input()
+            r = map(int, r.split(' '))
+            board[next(r), next(r)] = 1
+
+            board = -board
+            main.dispBoard(board)
+            if main.winning(-board):
+                return
+            turn = not turn
+
+
+        # can move
+        actions = np.array(np.where(board == 0))
+        # as feature vectors
+        features = main.getFeatures(board, actions)
+
+        # set algorithm here.
+
+        # epsilon-greedy
+        # actions[0] x 1
+        r = np.argmax(model.get(features)[:, 0])
+
+        action = actions[:, r]
+        feature = features[r, :]
+
+        Reward = main.reward(board, action)
+
+        # put
+        board[action[0], action[1]] = 1
+
+        # restore black and white
+        if not turn:
+            board = -board
+
+        main.dispBoard(board)
+
+        # all masses are filled, win
+        if Reward != 0:
+
+            xs.append(feature)
+            ys.append(Reward)
+            return (xs, ys)
+
+
+        # end of this turn
+        turn = not turn
 
 if __name__ == '__main__':
-
-    start = time.time()
-    b = np.zeros((7, 7), dtype=np.int8)
-    b[3, 3] = 1
-    b[3, 4] = 1
-    b[3, 5] = 1
-    a = np.array(np.where(b == 0))
-    for i in range(6):
-        for j in range(1, 10):
-            w = np.load('./weight/weights{}000_{}.npy'.format(j, i))
-            features = main.getFeatures(-b, a)
-            print(w.dot(features.transpose()))
-
-
-
-    b, res, moved = play(w1, w2)
-    dispBoard(b)
-    print(moved)
-    print("play time", time.time() - start)
+    model = main.MyChain()
+    serializers.load_npz('./params/10000.model', model)
+    play(model=model)
