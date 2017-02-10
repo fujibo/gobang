@@ -295,6 +295,8 @@ def main(queue, pid):
     #     print("play time", time.time() - pstart)
     #     queue.put(res)
     #     # return res
+    queue.put(1)
+    return
 
 def test(model):
     start = time.time()
