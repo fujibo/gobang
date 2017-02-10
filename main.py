@@ -2,12 +2,14 @@ import numpy as np
 import numba
 import multiprocessing as mp
 import time
+from evaluation import *
+
 # NxN bang
 # M moku
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N*N * (N*N-1) *3 // 2 + N*N
+Fsize = N * N
 
 @numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
@@ -70,29 +72,31 @@ def getFeature(board, action):
 
     # use two masses relation as parameters
     # (N*N-1)*(N*N)/2  x 3 <all the combinations> x <(WW, BB), (WB, BW), blank>
-    relation = np.zeros(((N*N) * (N*N-1)//2, 3), dtype=np.int8)
-    i = 0
-    for mass_idx in range(tmp.size):
-        # white
-        size = tmp[mass_idx+1:].size
-        if tmp[mass_idx] == 1:
-            relation[i:i+size, 0] = (tmp[mass_idx+1:] == 1)
-            relation[i:i+size, 1] = (tmp[mass_idx+1:] == -1)
-            relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
-            i += size
-        # black
-        elif tmp[mass_idx] == -1:
-            relation[i:i+size, 1] = -(tmp[mass_idx+1:] == 1).astype(np.int8)
-            relation[i:i+size, 0] = -(tmp[mass_idx+1:] == -1).astype(np.int8)
-            relation[i:i+size, 2] = -(tmp[mass_idx+1:] == 0).astype(np.int8)
-            i += size
-        # blank
-        else:
-            relation[i:i+size, 2] = tmp[mass_idx+1:]
-            i += size
+    # relation = np.zeros(((N*N) * (N*N-1)//2, 3), dtype=np.int8)
+    # i = 0
+    # for mass_idx in range(tmp.size):
+    #     # white
+    #     size = tmp[mass_idx+1:].size
+    #     if tmp[mass_idx] == 1:
+    #         relation[i:i+size, 0] = (tmp[mass_idx+1:] == 1)
+    #         relation[i:i+size, 1] = (tmp[mass_idx+1:] == -1)
+    #         relation[i:i+size, 2] = (tmp[mass_idx+1:] == 0)
+    #         i += size
+    #     # black
+    #     elif tmp[mass_idx] == -1:
+    #         relation[i:i+size, 1] = -(tmp[mass_idx+1:] == 1).astype(np.int8)
+    #         relation[i:i+size, 0] = -(tmp[mass_idx+1:] == -1).astype(np.int8)
+    #         relation[i:i+size, 2] = -(tmp[mass_idx+1:] == 0).astype(np.int8)
+    #         i += size
+    #     # blank
+    #     else:
+    #         relation[i:i+size, 2] = tmp[mass_idx+1:]
+    #         i += size
+    #
+    # # use future as a parameter
+    # feature = np.hstack((tmp, relation.flatten()))
 
-    # use future as a parameter
-    feature = np.hstack((tmp, relation.flatten()))
+    feature = tmp
     return feature
 
 @numba.jit(numba.i1[:, :](numba.i1[:, :], numba.i8[:, :]))
@@ -105,10 +109,9 @@ def getFeatures(board, actions):
     return Features
 
 # @numba.jit(numba.f8[:](numba.f8[:]))
-def game(weights):
+def game(model, optimizer, losses):
 
     # parameters
-    alpha = 0.001
     gamma = 0.9
     epsilon = 0.10
 
@@ -131,7 +134,9 @@ def game(weights):
         if np.random.rand() < epsilon:
             r = np.random.randint(actions[0].size)
         else:
-            r = np.argmax(weights.dot(features.transpose()))
+            # actions[0] x 1
+            r = np.argmax(model.get(features)[:, 0])
+            # r = np.argmax(weights.dot(features.transpose()))
 
         action = actions[:, r]
         feature = features[r, :]
@@ -142,10 +147,15 @@ def game(weights):
 
         # all masses are filled, win
         if Reward != 0:
-            diff = Reward - weights.dot(feature)
-            weights += alpha * diff * feature.reshape(1, feature.size)
-            return weights
 
+            model.cleargrads()
+            x_ = Variable(feature.astype(np.float32).reshape(1, 49))
+            y_ = Variable(Reward.astype(np.float32).reshape(1, 1))
+            loss = model(x_, y_)
+            optimizer.update()
+
+            losses.append(loss.data)
+            return (model, optimizer)
 
         # else
         else:
@@ -157,9 +167,15 @@ def game(weights):
             # set algorithm here.
             nextfeatures = getFeatures(nextboard, nextactions)
 
-            diff = (Reward - gamma * np.max(weights.dot(nextfeatures.transpose())) - weights.dot(feature))
-            # reward - (hoge) because of opponent turn
-            weights += alpha * diff * feature.reshape(1, feature.size)
+            model.cleargrads()
+            x_ = Variable(feature.astype(np.float32).reshape(1, 49))
+            # この内の最大となるyを選択したい
+            y = -gamma * np.max(model.get(nextfeatures)[:, 0])
+            y_ = Variable(y.astype(np.float32).reshape(1, 1))
+            loss = model(x_, y_)
+            optimizer.update()
+
+            # losses.append(loss.data)
 
         # put
         board[action[0], action[1]] = 1
@@ -240,40 +256,56 @@ def dispBoard(board):
         else:
             print("")
 
-def main(queue, weights, pid):
-    weights0 = weights.copy()
+def main(queue, pid):
+    model = MyChain()
+    optimizer = optimizers.Adam()
+    optimizer.setup(model)
+    losses = []
+    plt.hold(False)
 
-    # reinforced learning
-    for i in range(1000):
-        if i % 10 == 0:
-            weights0 = weights.copy()
-            print(weights0)
-            test(weights0)
-        if i % 20 == 5:
-            pstart = time.time()
-            b, res, moved = play(weights0, weights)
-            dispBoard(b)
-            print(moved)
-            print("play time", time.time() - pstart)
+    for i in range(10000):
+        model, optimizer = game(model, optimizer, losses)
 
-        if i % 100 == 0:
-            # np.save('weights{}_{}.npy'.format(i, pid), weights)
-            print(weights)
-            print(i)
-        if np.max(np.abs(weights)) > 1000:
-            queue.put(-100)
-            return
-        weights = game(weights)
-    else:
-        # display result
-        np.save('weights1000.npy', weights)
-        pstart = time.time()
-        b, res, moved = play(weights0, weights)
-        dispBoard(b)
-        print(moved)
-        print("play time", time.time() - pstart)
-        queue.put(res)
-        # return res
+        # if i % 10 == 0:
+        plt.plot(losses, 'b')
+        plt.yscale('log')
+        plt.pause(0.01)
+        print(len(losses))
+
+        # if i % 100 == 0:
+        #     serializers.save_npz('{}.model'.format(i), model)
+
+    # # reinforced learning
+    # for i in range(1000):
+    #     if i % 10 == 0:
+    #         weights0 = weights.copy()
+    #         print(weights0)
+    #         test(weights0)
+    #     if i % 20 == 5:
+    #         pstart = time.time()
+    #         b, res, moved = play(weights0, weights)
+    #         dispBoard(b)
+    #         print(moved)
+    #         print("play time", time.time() - pstart)
+    #
+    #     if i % 100 == 0:
+    #         # np.save('weights{}_{}.npy'.format(i, pid), weights)
+    #         print(weights)
+    #         print(i)
+    #     if np.max(np.abs(weights)) > 1000:
+    #         queue.put(-100)
+    #         return
+    #     weights = game(weights)
+    # else:
+    #     # display result
+    #     np.save('weights1000.npy', weights)
+    #     pstart = time.time()
+    #     b, res, moved = play(weights0, weights)
+    #     dispBoard(b)
+    #     print(moved)
+    #     print("play time", time.time() - pstart)
+    #     queue.put(res)
+    #     # return res
 
 def test(weights):
     b = np.zeros((N, N), dtype=np.int8)
@@ -292,19 +324,16 @@ def test(weights):
 
 if __name__ == '__main__':
 
-    result = []
-
     queue = mp.Queue()
     testSize = 1
     pc = 0 # work as program counter
     start = time.time()
     if testSize == 1:
-        weight = np.random.rand(1, Fsize) / 10
-        main(queue, weight, 0)
+        main(queue, 0)
         pc += 1
     else:
         # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
-        ps = [mp.Process(target=main, args=(queue, np.zeros((1, Fsize)), i)) for i in range(testSize)]
+        ps = [mp.Process(target=main, args=(queue, i)) for i in range(testSize)]
 
         while pc < min(mp.cpu_count(), testSize):
             ps[pc].start()
