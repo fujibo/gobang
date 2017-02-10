@@ -44,20 +44,20 @@ def winning(board):
                 break
     return tf
 
-@numba.jit(numba.f8(numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]))
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
-    reward = 0
+    reward = np.zeros(1, dtype=np.float32)
     # winning state
     if winning(tmp.flatten()):
-        # reward = 11.0 - (N*N - np.sum(tmp == 0)) // N
-        reward = 4.0 + np.sum(tmp == 0) // N
+        reward = 1.0
+        # reward = 4.0 + np.sum(tmp == 0) // N
     elif (tmp != 0).all():
-        reward = -1.0
+        reward = -0.1
     return reward
 
-@numba.jit(numba.i1[:](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]))
 def getFeature(board, action):
     'board: board now, action: one action'
     # 0 0 0 1 -1 1 0 0 0' s array
@@ -96,21 +96,23 @@ def getFeature(board, action):
     # # use future as a parameter
     # feature = np.hstack((tmp, relation.flatten()))
 
-    feature = tmp
+    feature = tmp.astype(np.float32)
     return feature
 
-@numba.jit(numba.i1[:, :](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]))
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
-    Features = np.zeros((actions.shape[1], Fsize), dtype=np.int8)
+    Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
     for i in range(actions.shape[1]):
         Features[i, :] = getFeature(board, actions[:, i])
     return Features
 
 # @numba.jit(numba.f8[:](numba.f8[:]))
-def game(model, optimizer, losses):
+def game(model):
 
+    xs = []
+    ys = []
     # parameters
     gamma = 0.9
     epsilon = 0.10
@@ -148,14 +150,10 @@ def game(model, optimizer, losses):
         # all masses are filled, win
         if Reward != 0:
 
-            model.cleargrads()
-            x_ = Variable(feature.astype(np.float32).reshape(1, 49))
-            y_ = Variable(Reward.astype(np.float32).reshape(1, 1))
-            loss = model(x_, y_)
-            optimizer.update()
+            xs.append(feature)
+            ys.append(Reward)
 
-            losses.append(loss.data)
-            return (model, optimizer)
+            return (xs, ys)
 
         # else
         else:
@@ -167,15 +165,11 @@ def game(model, optimizer, losses):
             # set algorithm here.
             nextfeatures = getFeatures(nextboard, nextactions)
 
-            model.cleargrads()
-            x_ = Variable(feature.astype(np.float32).reshape(1, 49))
+            xs.append(feature)
+
             # この内の最大となるyを選択したい
             y = -gamma * np.max(model.get(nextfeatures)[:, 0])
-            y_ = Variable(y.astype(np.float32).reshape(1, 1))
-            loss = model(x_, y_)
-            optimizer.update()
-
-            # losses.append(loss.data)
+            ys.append(y)
 
         # put
         board[action[0], action[1]] = 1
@@ -263,14 +257,34 @@ def main(queue, pid):
     losses = []
     plt.hold(False)
 
-    for i in range(10000):
-        model, optimizer = game(model, optimizer, losses)
+    x_data = []
+    y_data = []
+    data_size = 0
 
-        # if i % 10 == 0:
-        plt.plot(losses, 'b')
-        plt.yscale('log')
-        plt.pause(0.01)
-        print(len(losses))
+    for i in range(1, 10000):
+
+        xs, ys = game(model)
+        num = len(ys)
+
+        x_data += xs
+        y_data += ys
+        data_size += num
+
+        if i % 5 == 0:
+            model.cleargrads()
+            # a x 49
+            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, 49))
+            # a x 1
+            y_ = Variable(np.array(y_data, dtype=np.float32).reshape(data_size, 1))
+            loss = model(x_, y_)
+            loss.backward()
+            optimizer.update()
+
+            losses.append(loss.data)
+
+            plt.plot(losses, 'b')
+            plt.yscale('log')
+            plt.pause(0.01)
 
         # if i % 100 == 0:
         #     serializers.save_npz('{}.model'.format(i), model)
