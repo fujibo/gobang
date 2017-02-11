@@ -24,10 +24,12 @@ def on_mouse(event, x, y, flag, params):
         tmp = points - p
         idx = np.argmin(np.sum(np.square(tmp), axis=1))
         p = points[idx, :]
+        y, x = (p - 35) // 70
+        if board[x, y] != 0:
+            return
+        board[x, y] = -1
         cv2.circle(image, center=tuple(p.tolist()), radius=20, color=0, thickness=-1)
         # cv2.imshow(winname, image)
-        y, x = (p - 35) // 70
-        board[x, y] = -1
         if not main.winning(-board):
             state = not state
 
