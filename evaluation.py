@@ -7,13 +7,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # http://qiita.com/ashitani/items/1dc0a54da218ec224ad8
+
+
 class MyChain(Chain):
     """docstring for MyChain"""
+
     def __init__(self):
         super(MyChain, self).__init__(
             l1=L.Linear(49, 64),
             l2=L.Linear(64, 1),
         )
+
     def __call__(self, x, y):
         return F.mean_squared_error(self.predict(x), y)
 

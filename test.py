@@ -9,7 +9,8 @@ from evaluation import *
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N*N
+Fsize = N * N
+
 
 def play(model):
 
@@ -36,7 +37,6 @@ def play(model):
             if main.winning(-board):
                 return
             turn = not turn
-
 
         # can move
         actions = np.array(np.where(board == 0))
@@ -69,7 +69,6 @@ def play(model):
             xs.append(feature)
             ys.append(Reward)
             return (xs, ys)
-
 
         # end of this turn
         turn = not turn

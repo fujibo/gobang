@@ -11,28 +11,29 @@ N = 7
 M = 4
 Fsize = N * N
 
+
 @numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
     tf = False
 
     board = board.reshape(N, N)
     for i in range(N):
-        for j in range(N-M+1):
+        for j in range(N - M + 1):
             # white
-            if (board[i, j:j+M] == 1).all():
+            if (board[i, j:j + M] == 1).all():
                 tf = True
                 # print("row i, j", i, j)
                 break
-            elif (board[j:j+M, i] == 1).all():
+            elif (board[j:j + M, i] == 1).all():
                 tf = True
                 # print("col i, j", i, j)
                 break
     if tf:
         return True
 
-    for i in range(N-M+1):
-        for j in range(N-M+1):
-            tmp = board[i:i+M, j:j+M]
+    for i in range(N - M + 1):
+        for j in range(N - M + 1):
+            tmp = board[i:i + M, j:j + M]
             if (tmp.diagonal() == 1).all():
                 tf = True
                 # print("diag1 i, j", i, j)
@@ -43,6 +44,7 @@ def winning(board):
                 # print("diag2 i, j", i, j)
                 break
     return tf
+
 
 @numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]))
 def reward(board, action):
@@ -57,6 +59,7 @@ def reward(board, action):
         reward = -0.1
     return reward
 
+
 @numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]))
 def getFeature(board, action):
     'board: board now, action: one action'
@@ -68,11 +71,13 @@ def getFeature(board, action):
     feature = tmp.astype(np.float32)
     return feature
 
+
 @numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]))
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
-    Features = board.flatten().reshape(1, board.size).repeat(actions.shape[1], axis=0).astype(np.float32)
+    Features = board.flatten().reshape(1, board.size).repeat(
+        actions.shape[1], axis=0).astype(np.float32)
     for i in range(actions.shape[1]):
         Features[i, actions[0, i] + actions[1, i] * N] = 1
     # Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
@@ -81,6 +86,8 @@ def getFeatures(board, actions):
     return Features
 
 # @numba.jit(numba.f8[:](numba.f8[:]))
+
+
 def game(model):
 
     xs = []
@@ -155,6 +162,7 @@ def game(model):
         # end of this turn
         turn = not turn
 
+
 def play(weights1, weights2):
     board = np.zeros((N, N), dtype=np.int8)
     moved = []
@@ -196,7 +204,6 @@ def play(weights1, weights2):
         # print(actions[0][r], actions[1][r])
         # print(board)
 
-
         # end of the game
         if Reward != 0:
             return (board, Reward, moved)
@@ -208,6 +215,7 @@ def play(weights1, weights2):
 
         # end of this turn
         turn = not turn
+
 
 def dispBoard(board):
     'display board'
@@ -222,6 +230,7 @@ def dispBoard(board):
                 print(".", end="")
         else:
             print("")
+
 
 def main(queue, pid):
     model = MyChain()
@@ -299,6 +308,7 @@ def main(queue, pid):
     queue.put(1)
     return
 
+
 def test(model):
     start = time.time()
     b = np.zeros((N, N), dtype=np.int8)
@@ -320,7 +330,7 @@ if __name__ == '__main__':
 
     queue = mp.Queue()
     testSize = 1
-    pc = 0 # work as program counter
+    pc = 0  # work as program counter
     start = time.time()
     if testSize == 1:
         main(queue, 0)
@@ -343,4 +353,5 @@ if __name__ == '__main__':
     print(time.time() - start, "seconds")
     print(result)
     result = np.array(result)
-    print("for init, ", np.sum(result==1), "-- win, ", np.sum(result==-1), "-- lose, ", np.sum(result==0), "-- draw")
+    print("for init, ", np.sum(result == 1), "-- win, ",
+          np.sum(result == -1), "-- lose, ", np.sum(result == 0), "-- draw")
