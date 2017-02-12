@@ -264,7 +264,12 @@ def main(queue, pid):
 
             losses.append(loss.data)
 
-        if i % 5 == 0:
+        if i % 100 == 0:
+            x_data = []
+            y_data = []
+            data_size = 0
+
+        if i % 10 == 0:
             test(model)
 
             plt.plot(losses, 'b')
@@ -274,37 +279,6 @@ def main(queue, pid):
         if i % 1000 == 0:
             serializers.save_npz('./params/{}.model'.format(i), model)
 
-    # # reinforced learning
-    # for i in range(1000):
-    #     if i % 10 == 0:
-    #         weights0 = weights.copy()
-    #         print(weights0)
-    #         test(weights0)
-    #     if i % 20 == 5:
-    #         pstart = time.time()
-    #         b, res, moved = play(weights0, weights)
-    #         dispBoard(b)
-    #         print(moved)
-    #         print("play time", time.time() - pstart)
-    #
-    #     if i % 100 == 0:
-    #         # np.save('weights{}_{}.npy'.format(i, pid), weights)
-    #         print(weights)
-    #         print(i)
-    #     if np.max(np.abs(weights)) > 1000:
-    #         queue.put(-100)
-    #         return
-    #     weights = game(weights)
-    # else:
-    #     # display result
-    #     np.save('weights1000.npy', weights)
-    #     pstart = time.time()
-    #     b, res, moved = play(weights0, weights)
-    #     dispBoard(b)
-    #     print(moved)
-    #     print("play time", time.time() - pstart)
-    #     queue.put(res)
-    #     # return res
     queue.put(1)
     return
 
