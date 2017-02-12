@@ -88,13 +88,13 @@ def getFeatures(board, actions):
 # @numba.jit(numba.f8[:](numba.f8[:]))
 
 
-def game(model):
+def game(model, eps=0.10):
 
     xs = []
     ys = []
     # parameters
     gamma = 0.9
-    epsilon = 0.10
+    epsilon = eps
 
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
@@ -237,7 +237,6 @@ def main(queue, pid):
     optimizer = optimizers.Adam()
     optimizer.setup(model)
     losses = []
-    plt.hold(False)
 
     x_data = []
     y_data = []
@@ -245,14 +244,14 @@ def main(queue, pid):
 
     for i in range(1, 10001):
 
-        xs, ys = game(model)
+        xs, ys = game(model, eps=1.0-i*0.9/10000)
         num = len(ys)
 
         x_data += xs
         y_data += ys
         data_size += num
 
-        if i % 1 == 0:
+        if i % 10 == 0:
             model.cleargrads()
             # a x 49
             x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, Fsize))
@@ -269,15 +268,15 @@ def main(queue, pid):
             y_data = []
             data_size = 0
 
-        if i % 10 == 0:
+        if i % 20 == 0:
             test(model)
-
+            plt.clf()
             plt.plot(losses, 'b')
             plt.yscale('log')
             plt.pause(0.01)
 
         if i % 1000 == 0:
-            serializers.save_npz('./params/{}.model'.format(i), model)
+            serializers.save_npz('./params_1/{}.model'.format(i), model)
 
     queue.put(1)
     return
