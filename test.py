@@ -11,14 +11,10 @@ N = 7
 M = 4
 Fsize = N * N
 
-
 def play(model):
 
-    xs = []
-    ys = []
     # parameters
     gamma = 0.9
-    epsilon = 0
 
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
@@ -41,16 +37,13 @@ def play(model):
         # can move
         actions = np.array(np.where(board == 0))
         # as feature vectors
-        features = main.getFeatures(board, actions)
+        # features = main.getFeatures(board, actions)
 
         # set algorithm here.
-
-        # epsilon-greedy
-        # actions[0] x 1
-        r = np.argmax(model.get(features)[:, 0])
+        # r = np.argmax(model.get(features)[:, 0])
+        r = main.getMove(board, model, True, 2)
 
         action = actions[:, r]
-        feature = features[r, :]
 
         Reward = main.reward(board, action)
 
@@ -65,10 +58,7 @@ def play(model):
 
         # all masses are filled, win
         if Reward != 0:
-
-            xs.append(feature)
-            ys.append(Reward)
-            return (xs, ys)
+            return
 
         # end of this turn
         turn = not turn

@@ -308,6 +308,30 @@ def main(queue, pid):
     queue.put(1)
     return
 
+@numba.jit(numba.i8(numba.i1[:, :], numba.f8[:], numba.b1, numba.i8))
+def getMove(board, model, flag, depth):
+    '''board, model, flag, depth
+    flag: if this function is for idx or for score'''
+    if depth == 1:
+        actions = np.array(np.where(board == 0))
+        features = getFeatures(board, actions)
+        if flag:
+            return np.argmax(model.get(features)[:, 0])
+        else:
+            return -np.max(model.get(features)[:, 0])
+    else:
+        actions = np.array(np.where(board == 0))
+        score = np.zeros(actions.shape[1])
+        for i in range(actions.shape[1]):
+            nextboard = board.copy()
+            nextboard[actions[0, i], actions[1, i]] = 1
+            nextboard = -nextboard
+            score[i] = getMove(nextboard, model, False, depth-1)
+        else:
+            if flag:
+                return np.argmax(score)
+            else:
+                return np.max(score)
 
 def test(model):
     start = time.time()

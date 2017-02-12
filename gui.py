@@ -29,9 +29,9 @@ def on_mouse(event, x, y, flag, params):
             return
         board[x, y] = -1
         cv2.circle(image, center=tuple(p.tolist()), radius=20, color=0, thickness=-1)
-        # cv2.imshow(winname, image)
-        if not main.winning(-board):
-            state = not state
+        cv2.imshow(winname, image)
+
+        state = not state
 
 def play(model):
     board = np.zeros((N, N), dtype=np.int8)
@@ -52,30 +52,29 @@ def play(model):
     cv2.namedWindow('window', flags=cv2.WINDOW_AUTOSIZE)
     reward = 0
     while True:
-        cv2.setMouseCallback('window', on_mouse, [image, 'window', points, board])
-        cv2.imshow('window', image)
-        if main.winning(-board) or reward != 0:
-            cv2.imshow('window', image)
-            key = cv2.waitKey(10)
-            return
         key = cv2.waitKey(1)
         if key == ord('q'):
             return
 
         if not state:
+            if main.winning(-board) or reward != 0:
+                key = cv2.waitKey(10)
+                return
             board, reward = com_turn(image, board, points)
+            cv2.imshow('window', image)
+
             if reward == 0:
                 state = not state
+                cv2.setMouseCallback('window', on_mouse, [image, 'window', points, board])
+
 
 
 def com_turn(image, board, points):
     actions = np.array(np.where(board == 0))
-    features = main.getFeatures(board, actions)
 
-    r = np.argmax(model.get(features)[:, 0])
-
+    # r = np.argmax(model.get(features)[:, 0])
+    r = main.getMove(board, model, True, depth=2)
     action = actions[:, r]
-    feature = features[r, :]
 
     Reward = main.reward(board, action)
 
