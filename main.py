@@ -236,7 +236,7 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    model.load_npz('./params_1/99.model', model)
+    serializers.load_npz('./params_1/99.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
 
@@ -265,10 +265,10 @@ def main(queue, pid):
             x_data = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
             # gamesize
             y_data = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
-            idxes = np.random.permutation(data_size)
 
             for s in range(10):
-                for j in range(1, 101):
+                idxes = np.random.permutation(data_size)
+                for j in range(1, 1001):
                     model.cleargrads()
                     # random sampling
                     x = x_data[idxes[s::10], :]
@@ -283,13 +283,15 @@ def main(queue, pid):
 
                     losses.append(loss.data)
 
-                    if j % 5 == 0:
+                    if j % 50 == 0:
                         plt.plot(losses, 'b')
                         plt.yscale('log')
                         plt.pause(1e-12)
 
                     if j % 50 == 0:
                         test(model)
+                else:
+                    plt.clf()
             else:
                 plt.savefig('./params_1/fig{}_.png'.format(k))
                 plt.clf()

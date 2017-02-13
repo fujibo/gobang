@@ -91,5 +91,5 @@ def com_turn(image, board, points):
 
 if __name__ == '__main__':
     model = main.MyChain()
-    serializers.load_npz('./params_1/99.model', model)
+    serializers.load_npz('./params_1/5.model_', model)
     play(model=model)
