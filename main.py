@@ -9,7 +9,7 @@ from evaluation import *
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N * N
+Fsize = N * N * 2
 
 
 @numba.jit(numba.b1(numba.i1[:]))
@@ -77,9 +77,11 @@ def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
     Features = board.flatten().reshape(1, board.size).repeat(
-        actions.shape[1], axis=0).astype(np.float32)
+        actions.shape[1], axis=0)
     for i in range(actions.shape[1]):
         Features[i, actions[0, i] + actions[1, i] * N] = 1
+
+    Features = np.hstack((Features == 1, Features == -1)).astype(np.float32)
     # Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
     # for i in range(actions.shape[1]):
     #     Features[i, :] = getFeature(board, actions[:, i])
@@ -234,7 +236,7 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    # model.load_npz('./params_1/10000.model', model)
+    model.load_npz('./params_1/99.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
 
@@ -263,34 +265,36 @@ def main(queue, pid):
             x_data = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
             # gamesize
             y_data = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
+            idxes = np.random.permutation(data_size)
 
-            for j in range(1, 101):
-                model.cleargrads()
-                # random sampling
-                x = x_data[0:, :]
-                y = y_data[0:, :]
-                # a x 49
-                x_ = Variable(x)
-                # a x 1
-                y_ = Variable(y)
-                loss = model(x_, y_)
-                loss.backward()
-                optimizer.update()
+            for s in range(10):
+                for j in range(1, 101):
+                    model.cleargrads()
+                    # random sampling
+                    x = x_data[idxes[s::10], :]
+                    y = y_data[idxes[s::10], :]
+                    # a x 49
+                    x_ = Variable(x)
+                    # a x 1
+                    y_ = Variable(y)
+                    loss = model(x_, y_)
+                    loss.backward()
+                    optimizer.update()
 
-                losses.append(loss.data)
+                    losses.append(loss.data)
 
-                if j % 5 == 0:
-                    plt.plot(losses, 'b')
-                    plt.yscale('log')
-                    plt.pause(1e-12)
+                    if j % 5 == 0:
+                        plt.plot(losses, 'b')
+                        plt.yscale('log')
+                        plt.pause(1e-12)
 
-                if j % 50 == 0:
-                    test(model)
+                    if j % 50 == 0:
+                        test(model)
             else:
-                plt.savefig('./params_1/fig{}.png'.format(k))
+                plt.savefig('./params_1/fig{}_.png'.format(k))
                 plt.clf()
                 print(k, 'end of learning')
-                serializers.save_npz('./params_1/{}.model'.format(k), model)
+                serializers.save_npz('./params_1/{}.model_'.format(k), model)
 
 
     queue.put(1)
