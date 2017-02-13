@@ -14,8 +14,8 @@ class MyChain(Chain):
 
     def __init__(self):
         super(MyChain, self).__init__(
-            l1=L.Linear(49, 128),
-            l2=L.Linear(128, 64),
+            l1=L.Linear(49, 64),
+            l2=L.Linear(64, 64),
             l3=L.Linear(64, 1),
         )
 
@@ -24,9 +24,9 @@ class MyChain(Chain):
 
     def predict(self, x):
         'return predict value only used in this NN'
-        h1 = F.relu(self.l1(x))
-        h2 = F.relu(self.l2(h1))
-        h3 = F.relu(self.l3(h2))
+        h1 = F.tanh(self.l1(x))
+        h2 = F.tanh(self.l2(h1))
+        h3 = F.tanh(self.l3(h2))
         return h3
 
     def get(self, x):

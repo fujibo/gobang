@@ -237,51 +237,62 @@ def main(queue, pid):
     # model.load_npz('./params_1/10000.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
-    losses = []
 
-    x_data = []
-    y_data = []
-    data_size = 0
+    for k in range(100):
 
-    for i in range(1, 10001):
+        losses = []
 
-        xs, ys = game(model, eps=1.0-i*0.9/10000)
-        # xs, ys = game(model)
-        num = len(ys)
+        x_data = []
+        y_data = []
+        data_size = 0
+        # make data
+        stime = time.time()
+        for i in range(1, 101):
+            xs, ys = game(model, eps=0.5-i*0.4/100)
+            # xs, ys = game(model)
+            num = len(ys)
 
-        x_data += xs
-        y_data += ys
-        data_size += num
+            x_data += xs
+            y_data += ys
+            data_size += num
 
-        if i % 10 == 0:
-            model.cleargrads()
-            # a x 49
-            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, Fsize))
-            # a x 1
-            y_ = Variable(np.array(y_data, dtype=np.float32).reshape(data_size, 1))
-            loss = model(x_, y_)
-            loss.backward()
-            optimizer.update()
+        # learning
+        else:
+            print('end of games. takes', time.time() - stime, 'sec')
+            # Fsize x gamesize
+            x_data = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
+            # gamesize
+            y_data = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
 
-            losses.append(loss.data)
+            for j in range(1, 101):
+                model.cleargrads()
+                # random sampling
+                x = x_data[0:, :]
+                y = y_data[0:, :]
+                # a x 49
+                x_ = Variable(x)
+                # a x 1
+                y_ = Variable(y)
+                loss = model(x_, y_)
+                loss.backward()
+                optimizer.update()
 
-        if i % 10 == 0:
-            x_data = []
-            y_data = []
-            data_size = 0
+                losses.append(loss.data)
 
-        if i % 20 == 0:
-            plt.plot(losses, 'b')
-            plt.yscale('log')
-            plt.pause(1e-12)
+                if j % 5 == 0:
+                    plt.plot(losses, 'b')
+                    plt.yscale('log')
+                    plt.pause(1e-12)
 
-        if i % 50 == 0:
-            test(model)
+                if j % 50 == 0:
+                    test(model)
+            else:
+                plt.savefig('./params_1/fig{}.png'.format(k))
+                plt.clf()
+                print(k, 'end of learning')
+                serializers.save_npz('./params_1/{}.model'.format(k), model)
 
-        if i % 1000 == 0:
-            serializers.save_npz('./params_1/{}.model'.format(i), model)
 
-    plt.savefig('./params_1/figure_1.png')
     queue.put(1)
     return
 

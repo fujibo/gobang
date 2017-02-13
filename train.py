@@ -88,13 +88,13 @@ def getFeatures(board, actions):
 # @numba.jit(numba.f8[:](numba.f8[:]))
 
 
-def game(model):
+def game(model, eps=0.10):
 
     xs = []
     ys = []
     # parameters
     gamma = 0.9
-    epsilon = 0.10
+    epsilon = eps
 
     board = np.zeros((N, N), dtype=np.int8)
     turn = True
@@ -234,52 +234,65 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    serializers.load_npz('./params_1/10000.model', model)
+    model.load_npz('./params_1/100.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
-    losses = []
 
-    x_data = []
-    y_data = []
-    data_size = 0
+    for k in range(100):
 
-    for i in range(1, 10001):
+        losses = []
 
-        xs, ys = game(model)
-        num = len(ys)
+        x_data = []
+        y_data = []
+        data_size = 0
+        # make data
+        stime = time.time()
+        for i in range(1, 101):
+            xs, ys = game(model, eps=0.5-i*0.4/100)
+            # xs, ys = game(model)
+            num = len(ys)
 
-        x_data += xs
-        y_data += ys
-        data_size += num
+            x_data += xs
+            y_data += ys
+            data_size += num
 
-        if i % 10 == 0:
-            model.cleargrads()
-            # a x 49
-            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, Fsize))
-            # a x 1
-            y_ = Variable(np.array(y_data, dtype=np.float32).reshape(data_size, 1))
-            loss = model(x_, y_)
-            loss.backward()
-            optimizer.update()
+        # learning
+        else:
+            print('end of games. takes', time.time() - stime, 'sec')
+            # Fsize x gamesize
+            x_data = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
+            # gamesize
+            y_data = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
 
-            losses.append(loss.data)
+            for j in range(1, 101):
+                model.cleargrads()
+                # random sampling
+                x = x_data[0:, :]
+                y = y_data[0:, :]
+                # a x 49
+                x_ = Variable(x)
+                # a x 1
+                y_ = Variable(y)
+                loss = model(x_, y_)
+                loss.backward()
+                optimizer.update()
 
-            x_data = []
-            y_data = []
-            data_size = 0
+                losses.append(loss.data)
 
-        if i % 20 == 0:
-            test(model)
+                if j % 5 == 0:
+                    plt.plot(losses, 'b')
+                    plt.yscale('log')
+                    plt.pause(1e-12)
 
-            plt.clf()
-            plt.plot(losses, 'b')
-            plt.yscale('log')
-            plt.pause(0.01)
+                if j % 50 == 0:
+                    test(model)
+            else:
+                plt.savefig('./params_1/fig{}.png'.format(k + 100))
+                plt.clf()
+                print(k, 'end of learning')
+                serializers.save_npz('./params_1/{}.model'.format(k + 100), model)
 
-        if i % 1000 == 0:
-            serializers.save_npz('./params_1/1{}.model'.format(i), model)
 
-    plt.savefig('figure_1.png')
     queue.put(1)
     return
 
