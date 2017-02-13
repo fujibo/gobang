@@ -234,11 +234,10 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    serializers.load_npz('./params/12000_.model', model)
+    serializers.load_npz('./params_1/10000.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
     losses = []
-    plt.hold(False)
 
     x_data = []
     y_data = []
@@ -269,17 +268,18 @@ def main(queue, pid):
             y_data = []
             data_size = 0
 
-        if i % 50 == 0:
+        if i % 20 == 0:
             test(model)
 
+            plt.clf()
             plt.plot(losses, 'b')
             plt.yscale('log')
             plt.pause(0.01)
 
         if i % 1000 == 0:
-            serializers.save_npz('./params/{}__.model'.format(i), model)
+            serializers.save_npz('./params_1/1{}.model'.format(i), model)
 
-    plt.savefig('figure.png')
+    plt.savefig('figure_1.png')
     queue.put(1)
     return
 

@@ -234,6 +234,7 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
+    # model.load_npz('./params_1/10000.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
     losses = []
@@ -245,6 +246,7 @@ def main(queue, pid):
     for i in range(1, 10001):
 
         xs, ys = game(model, eps=1.0-i*0.9/10000)
+        # xs, ys = game(model)
         num = len(ys)
 
         x_data += xs
@@ -263,21 +265,23 @@ def main(queue, pid):
 
             losses.append(loss.data)
 
-        if i % 100 == 0:
+        if i % 10 == 0:
             x_data = []
             y_data = []
             data_size = 0
 
         if i % 20 == 0:
-            test(model)
-            plt.clf()
             plt.plot(losses, 'b')
             plt.yscale('log')
-            plt.pause(0.01)
+            plt.pause(1e-12)
+
+        if i % 50 == 0:
+            test(model)
 
         if i % 1000 == 0:
             serializers.save_npz('./params_1/{}.model'.format(i), model)
 
+    plt.savefig('./params_1/figure_1.png')
     queue.put(1)
     return
 
