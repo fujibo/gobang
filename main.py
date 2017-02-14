@@ -50,7 +50,7 @@ def winning(board):
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
-    reward = np.zeros(1, dtype=np.float32)
+    reward = 0
     # winning state
     if winning(tmp.flatten()):
         reward = 1.0
@@ -93,6 +93,7 @@ def getFeatures(board, actions):
 def game(model, eps=0.10):
 
     xs = []
+    nxs = []
     ys = []
     # parameters
     gamma = 0.9
@@ -132,9 +133,10 @@ def game(model, eps=0.10):
         if Reward != 0:
 
             xs.append(feature)
+            nxs.append(board.flatten())
             ys.append(Reward)
 
-            return (xs, ys)
+            return (xs, nxs, ys)
 
         # else
         else:
@@ -142,15 +144,16 @@ def game(model, eps=0.10):
             nextboard[action[0], action[1]] = 1
             # can move
             nextboard = -nextboard
-            nextactions = np.array(np.where(nextboard == 0))
-            # set algorithm here.
-            nextfeatures = getFeatures(nextboard, nextactions)
+            # nextactions = np.array(np.where(nextboard == 0))
+            # # set algorithm here.
+            # nextfeatures = getFeatures(nextboard, nextactions)
 
             xs.append(feature)
+            nxs.append(nextboard.flatten())
 
             # この内の最大となるyを選択したい
-            y = -gamma * np.max(model.get(nextfeatures)[:, 0])
-            ys.append(y)
+            # y = -gamma * np.max(model.get(nextfeatures)[:, 0])
+            ys.append(Reward)
 
         # put
         board[action[0], action[1]] = 1
@@ -159,65 +162,8 @@ def game(model, eps=0.10):
         if not turn:
             board = -board
 
-        # print(board)
-
         # end of this turn
         turn = not turn
-
-
-def play(weights1, weights2):
-    board = np.zeros((N, N), dtype=np.int8)
-    moved = []
-    turn = True
-
-    while True:
-        # change black and white
-        if not turn:
-            board = -board
-
-        # can move
-        actions = np.array(np.where(board == 0))
-        features = getFeatures(board, actions)
-
-        if turn:
-            r = np.argmax(weights1.dot(features.transpose()))
-        else:
-            r = np.argmax(weights2.dot(features.transpose()))
-
-        # put
-        moved.append(actions[:, r])
-        board[actions[0][r], actions[1][r]] = 1
-
-        Reward = 0
-        # winning state
-        win = winning(board.flatten())
-        if win:
-            if turn:
-                print("white")
-                Reward = 1
-            else:
-                print("black")
-                Reward = -1
-
-        # restore black and white
-        if not turn:
-            board = -board
-
-        # print(actions[0][r], actions[1][r])
-        # print(board)
-
-        # end of the game
-        if Reward != 0:
-            return (board, Reward, moved)
-
-        # all masses are filled.
-        elif (board != 0).all():
-            print("draw")
-            return (board, Reward, moved)
-
-        # end of this turn
-        turn = not turn
-
 
 def dispBoard(board):
     'display board'
@@ -236,67 +182,97 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    serializers.load_npz('./params_1/99.model', model)
+    # serializers.load_npz('./params_1/99.model', model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
 
-    for k in range(100):
+
+    x_data = []
+    nx_data = []
+    y_data = []
+    data_size = 0
+    # make data
+
+    # init
+    stime = time.time()
+    for i in range(1, 21):
+        xs, nxs, ys = game(model, eps=0.1)
+        # xs, ys = game(model)
+        num = len(ys)
+
+        x_data += xs
+        nx_data += nxs
+        y_data += ys
+        data_size += num
+
+    print('end of games. takes', time.time() - stime, 'sec')
+
+    gamma = 0.9
+    # learning
+    for i in range(1000):
+        xs, nxs, ys = game(model, eps=0.1)
+        # xs, ys = game(model)
+        num = len(ys)
+
+        x_data += xs
+        nx_data += nxs
+        y_data += ys
+        data_size += num
+
+        # Fsize x gamesize
+        x_data_ = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
+        nx_data_ = np.array(nx_data, dtype=np.float32).reshape(data_size, N*N)
+        # gamesize
+        y_data_ = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
+
+        print('sampling')
+        sample_t = time.time()
+        # 100 boards sampling
+        idxes = np.random.permutation(data_size)
+        # random sampling
+        x = x_data_[idxes[0:100], :]
+        nx = nx_data_[idxes[0:100], :]
+        y = y_data_[idxes[0:100], :]
+
+        for k in range(100):
+            if  y[k, 0] == 0:
+                tmp = nx[k, :].reshape(N, N)
+                nextactions = np.array(np.where(tmp == 0))
+                nextfeatures = getFeatures(tmp, nextactions)
+                y[k, 0] = -gamma * np.max(model.get(nextfeatures)[:, 0])
+
+        print('sampling end.', time.time() - sample_t, 'sec')
+
 
         losses = []
+        for j in range(1, 1001):
 
-        x_data = []
-        y_data = []
-        data_size = 0
-        # make data
-        stime = time.time()
-        for i in range(1, 101):
-            xs, ys = game(model, eps=0.5-i*0.4/100)
-            # xs, ys = game(model)
-            num = len(ys)
+            # a x 49
+            x_ = Variable(x)
+            # a x 1
+            y_ = Variable(y)
 
-            x_data += xs
-            y_data += ys
-            data_size += num
+            model.cleargrads()
+            loss = model(x_, y_)
+            loss.backward()
+            optimizer.update()
 
-        # learning
+            losses.append(loss.data)
+
+            if j % 50 == 0:
+                plt.plot(losses, 'b')
+                plt.yscale('log')
+                plt.pause(1e-12)
+
+            if j % 500 == 0:
+                test(model)
         else:
-            print('end of games. takes', time.time() - stime, 'sec')
-            # Fsize x gamesize
-            x_data = np.array(x_data, dtype=np.float32).reshape(data_size, Fsize)
-            # gamesize
-            y_data = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
+            plt.clf()
 
-            for s in range(10):
-                idxes = np.random.permutation(data_size)
-                for j in range(1, 1001):
-                    model.cleargrads()
-                    # random sampling
-                    x = x_data[idxes[s::10], :]
-                    y = y_data[idxes[s::10], :]
-                    # a x 49
-                    x_ = Variable(x)
-                    # a x 1
-                    y_ = Variable(y)
-                    loss = model(x_, y_)
-                    loss.backward()
-                    optimizer.update()
-
-                    losses.append(loss.data)
-
-                    if j % 50 == 0:
-                        plt.plot(losses, 'b')
-                        plt.yscale('log')
-                        plt.pause(1e-12)
-
-                    if j % 50 == 0:
-                        test(model)
-                else:
-                    plt.clf()
-            else:
-                plt.savefig('./params_1/fig{}_.png'.format(k))
-                plt.clf()
-                print(k, 'end of learning')
-                serializers.save_npz('./params_1/{}.model_'.format(k), model)
+        # plt.savefig('./params_1/fig{}.png'.format(i))
+        # plt.clf()
+        print(i, 'end of learning')
+        serializers.save_npz('./params_1/{}_.model'.format(k), model)
 
 
     queue.put(1)
