@@ -11,40 +11,68 @@ N = 7
 M = 4
 Fsize = N * N
 
-
-@numba.jit(numba.b1(numba.i1[:]))
+@numba.jit
 def winning(board):
-    'board: flatten board'
-    tf = False
-
-    board = board.reshape(N, N)
-    for i in range(N):
-        for j in range(N - M + 1):
-            # white
-            if (board[i, j:j + M] == 1).all():
-                tf = True
-                # print("row i, j", i, j)
-                break
-            elif (board[j:j + M, i] == 1).all():
-                tf = True
-                # print("col i, j", i, j)
-                break
-    if tf:
-        return True
-
+    b = board.reshape(N, N) == 1
     for i in range(N - M + 1):
         for j in range(N - M + 1):
-            tmp = board[i:i + M, j:j + M]
-            if (tmp.diagonal() == 1).all():
-                tf = True
-                # print("diag1 i, j", i, j)
-                break
+            tmp = b[i:i + M, j:j + M].flatten()
+            for k in range(N - M + 1):
+                # col
+                if tmp[k] and tmp[k+4] and tmp[k+8] and tmp[k+12]:
+                    return True
+                # row
+                if tmp[k*4] and tmp[k*4+1] and tmp[k*4+2] and tmp[k*4+3]:
+                    return True
 
-            elif (np.rot90(tmp).diagonal() == 1).all():
-                tf = True
-                # print("diag2 i, j", i, j)
-                break
-    return tf
+            # diag
+            else:
+                if tmp[0] and tmp[5] and tmp[10] and tmp[15]:
+                    return True
+                elif tmp[3] and tmp[6] and tmp[9] and tmp[12]:
+                    return True
+    else:
+        return False
+
+# @numba.jit(numba.b1(numba.i1[:]))
+# def winning(board):
+#     'board: flatten board'
+#     tf = False
+#
+#     board = board.reshape(N, N)
+#     for i in range(N):
+#         if np.sum(board[i, :] == 1) < 4:
+#             continue
+#         for j in range(N - M + 1):
+#             # white
+#             if (board[i, j:j + M] == 1).all():
+#                 tf = True
+#                 break
+#     if tf:
+#         return True
+#     for i in range(N):
+#         if np.sum(board[:, i] == 1) < 4:
+#             continue
+#         for j in range(N - M + 1):
+#             if (board[j:j + M, i] == 1).all():
+#                 tf = True
+#                 break
+#     if tf:
+#         return True
+#
+#     for i in range(N - M + 1):
+#         for j in range(N - M + 1):
+#             tmp = board[i:i + M, j:j + M]
+#             if (tmp.diagonal() == 1).all():
+#                 tf = True
+#                 # print("diag1 i, j", i, j)
+#                 break
+#
+#             elif (np.rot90(tmp).diagonal() == 1).all():
+#                 tf = True
+#                 # print("diag2 i, j", i, j)
+#                 break
+#     return tf
 
 
 @numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]))
@@ -315,7 +343,7 @@ def getMove(board, model, flag, depth):
     flag: if this function is for idx or for score'''
     # check mate
     if flag:
-        res = Mate(board, True, depth=1)
+        res = Mate(board, True, depth=3)
         if res != -1:
             return res
 
