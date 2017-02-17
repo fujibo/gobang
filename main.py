@@ -389,6 +389,12 @@ def Mate(board, flag, depth):
                 return 0
 
     else:
+        # 相手の手によって決着がつかないことを知っていれば舐めた手をしても良い
+        if flag:
+            res = Mate(board, True, depth=1)
+            if res != -1:
+                return res
+
         actions = np.array(np.where(board == 0))
         score = np.zeros(actions.shape[1])
         for i in range(actions.shape[1]):
