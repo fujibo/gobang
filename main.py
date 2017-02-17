@@ -330,30 +330,30 @@ def getMove(board, model, flag, depth):
         actions = np.array(np.where(board == 0))
         score = np.zeros(actions.shape[1])
         for i in range(actions.shape[1]):
-            nextboard = board.copy()
-            nextboard[actions[0, i], actions[1, i]] = 1
-            nextboard = -nextboard
-            score[i] = getMove(nextboard, model, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 1
+            score[i] = getMove(-board, model, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 0
         else:
             if flag:
                 return np.argmax(score)
             else:
                 return -np.max(score)
 
-# @numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8))
+@numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8))
 def Mate(board, flag, depth):
     '''board, model, flag, depth
     flag: if this function is for idx or for score'''
     if depth == 1:
         actions = np.array(np.where(board == 0))
         for i in range(actions.shape[1]):
-            tmp = board.copy()
-            tmp[actions[0, i], actions[1, i]] = 1
-            if winning(tmp.flatten()):
+            board[actions[0, i], actions[1, i]] = 1
+            if winning(board.flatten()):
+                board[actions[0, i], actions[1, i]] = 0
                 if flag:
                     return i
                 else:
                     return -1
+            board[actions[0, i], actions[1, i]] = 0
         else:
             if flag:
                 return -1
@@ -364,17 +364,17 @@ def Mate(board, flag, depth):
         actions = np.array(np.where(board == 0))
         score = np.zeros(actions.shape[1])
         for i in range(actions.shape[1]):
-            nextboard = board.copy()
-            nextboard[actions[0, i], actions[1, i]] = 1
-            nextboard = -nextboard
-            score[i] = Mate(nextboard, False, depth-1)
-        else:
-            if flag:
-                res = np.argmax(score)
-                if score[res] == 1:
-                    return res
+            board[actions[0, i], actions[1, i]] = 1
+            score[i] = Mate(-board, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 0
+            if score[i] == 1:
+                if flag:
+                    return i
                 else:
                     return -1
+        else:
+            if flag:
+                return -1
             else:
                 return -np.max(score)
 
