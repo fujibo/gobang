@@ -30,6 +30,7 @@ def on_mouse(event, x, y, flag, params):
         board[x, y] = -1
         cv2.circle(image, center=tuple(p.tolist()), radius=20, color=0, thickness=-1)
         cv2.imshow(winname, image)
+        cv2.waitKey(1)
 
         state = not state
 
@@ -58,7 +59,7 @@ def play(model):
 
         if not state:
             if main.winning(-board) or reward != 0:
-                key = cv2.waitKey(10)
+                key = cv2.waitKey(1)
                 return
             board, reward = com_turn(image, board, points)
             cv2.imshow('window', image)
@@ -92,4 +93,10 @@ def com_turn(image, board, points):
 if __name__ == '__main__':
     model = main.MyChain()
     serializers.load_npz('./params/10000.model', model)
-    play(model=model)
+    while True:
+        play(model=model)
+        arg = input('continue? yes[y]/no[n]\n >>> ')
+        if arg == 'y' or arg == 'ye' or arg == 'yes':
+            continue
+        else:
+            break
