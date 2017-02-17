@@ -14,6 +14,7 @@ Fsize = N * N
 
 @numba.jit(numba.b1(numba.i1[:]))
 def winning(board):
+    'board: flatten board'
     tf = False
 
     board = board.reshape(N, N)
@@ -312,6 +313,12 @@ def main(queue, pid):
 def getMove(board, model, flag, depth):
     '''board, model, flag, depth
     flag: if this function is for idx or for score'''
+    # check mate
+    if flag:
+        res = Mate(board, True, depth=1)
+        if res != -1:
+            return res
+
     if depth == 1:
         actions = np.array(np.where(board == 0))
         features = getFeatures(board, actions)
@@ -331,7 +338,45 @@ def getMove(board, model, flag, depth):
             if flag:
                 return np.argmax(score)
             else:
-                return np.max(score)
+                return -np.max(score)
+
+# @numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8))
+def Mate(board, flag, depth):
+    '''board, model, flag, depth
+    flag: if this function is for idx or for score'''
+    if depth == 1:
+        actions = np.array(np.where(board == 0))
+        for i in range(actions.shape[1]):
+            tmp = board.copy()
+            tmp[actions[0, i], actions[1, i]] = 1
+            if winning(tmp.flatten()):
+                if flag:
+                    return i
+                else:
+                    return -1
+        else:
+            if flag:
+                return -1
+            else:
+                return 0
+
+    else:
+        actions = np.array(np.where(board == 0))
+        score = np.zeros(actions.shape[1])
+        for i in range(actions.shape[1]):
+            nextboard = board.copy()
+            nextboard[actions[0, i], actions[1, i]] = 1
+            nextboard = -nextboard
+            score[i] = Mate(nextboard, False, depth-1)
+        else:
+            if flag:
+                res = np.argmax(score)
+                if score[res] == 1:
+                    return res
+                else:
+                    return -1
+            else:
+                return -np.max(score)
 
 def test(model):
     start = time.time()
