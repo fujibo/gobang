@@ -12,7 +12,6 @@ Fsize = N * N
 SIZE = 490
 state = False
 
-
 def on_mouse(event, x, y, flag, params):
     global state
     image, winname, points, board = params
@@ -51,6 +50,10 @@ def play(model):
     points = np.array(points)
 
     cv2.namedWindow('window', flags=cv2.WINDOW_AUTOSIZE)
+    if state:
+        cv2.imshow('window', image)
+        cv2.setMouseCallback('window', on_mouse, [image, 'window', points, board])
+
     reward = 0
     while True:
         key = cv2.waitKey(1)
@@ -67,8 +70,6 @@ def play(model):
             if reward == 0:
                 state = not state
                 cv2.setMouseCallback('window', on_mouse, [image, 'window', points, board])
-
-
 
 def com_turn(image, board, points):
     actions = np.array(np.where(board == 0))
@@ -93,7 +94,11 @@ def com_turn(image, board, points):
 if __name__ == '__main__':
     model = main.MyChain()
     serializers.load_npz('./params/10000.model', model)
+
     while True:
+        # human: True, computer: False
+        state = False
+
         play(model=model)
         arg = input('continue? yes[y]/no[n]\n >>> ')
         if arg == 'y' or arg == 'ye' or arg == 'yes':
