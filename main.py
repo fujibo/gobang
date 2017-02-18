@@ -11,7 +11,7 @@ N = 7
 M = 4
 Fsize = N * N
 
-@numba.jit
+@numba.jit(cache=True)
 def winning(board):
     b = board.reshape(N, N) == 1
     for i in range(N - M + 1):
@@ -75,7 +75,7 @@ def winning(board):
 #     return tf
 
 
-@numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]), cache=True)
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
@@ -89,7 +89,7 @@ def reward(board, action):
     return reward
 
 
-@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeature(board, action):
     'board: board now, action: one action'
 
@@ -101,7 +101,7 @@ def getFeature(board, action):
     return feature
 
 
-@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
@@ -337,7 +337,7 @@ def main(queue, pid):
     queue.put(1)
     return
 
-@numba.jit(numba.i8(numba.i1[:, :], numba.f8[:], numba.b1, numba.i8))
+@numba.jit(numba.f4(numba.i1[:, :], numba.f8[:], numba.b1, numba.i8), cache=True)
 def getMove(board, model, flag, depth):
     '''board, model, flag, depth
     flag: if this function is for idx or for score'''
@@ -353,6 +353,8 @@ def getMove(board, model, flag, depth):
         if flag:
             return np.argmax(model.get(features)[:, 0])
         else:
+            if Mate(board, False, depth=1) == -1:
+                return -2
             return -np.max(model.get(features)[:, 0])
     else:
         actions = np.array(np.where(board == 0))
@@ -363,11 +365,14 @@ def getMove(board, model, flag, depth):
             board[actions[0, i], actions[1, i]] = 0
         else:
             if flag:
-                return np.argmax(score)
+                if np.max(score) == -2:
+                    return getMove(board, model, True, depth=1)
+                else:
+                    return np.argmax(score)
             else:
                 return -np.max(score)
 
-@numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8))
+@numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8), cache=True)
 def Mate(board, flag, depth):
     '''board, model, flag, depth
     flag: if this function is for idx or for score'''
