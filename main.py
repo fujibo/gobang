@@ -194,9 +194,16 @@ def main(queue, pid):
     print('end of games. takes', time.time() - stime, 'sec')
 
     gamma = 0.9
+    losses = []
+
     # learning
     for i in range(1000):
+        ########
+        # game #
+        ########
+        sample_t = time.time()
         xs, nxs, ys = game(model, eps=0.1)
+        print('{:.3f} s for a game'.format(time.time() - sample_t))
         # xs, ys = game(model)
         num = len(ys)
 
@@ -211,7 +218,9 @@ def main(queue, pid):
         # gamesize
         y_data_ = np.array(y_data, dtype=np.float32).reshape(data_size, 1)
 
-        print('sampling')
+        ############
+        # sampling #
+        ############
         sample_t = time.time()
         # 100 boards sampling
         idxes = np.random.permutation(data_size)
@@ -227,11 +236,14 @@ def main(queue, pid):
                 nextfeatures = getFeatures(tmp, nextactions)
                 y[k, 0] = -gamma * np.max(model.get(nextfeatures)[:, 0])
 
-        print('sampling end.', time.time() - sample_t, 'sec')
+        print('{:.3f} sec for sampling'.format(time.time() - sample_t))
 
 
-        losses = []
-        for j in range(1, 1001):
+        ############
+        # training #
+        ############
+        sample_t = time.time()
+        for j in range(1, 101):
 
             # a x 49
             x_ = Variable(x.reshape(-1, 1, N, N))
@@ -243,23 +255,23 @@ def main(queue, pid):
             loss.backward()
             optimizer.update()
 
-            losses.append(loss.data)
+            # losses.append(loss.data)
+            if j == 1:
+                losses.append(loss.data)
+                print('loss = {:.3e}'.format(float(loss.data)))
 
-            if j % 50 == 0:
-                plt.plot(range(j-50, j, 10), losses[j-50:j:10], 'b')
-                plt.yscale('log')
-                plt.pause(1e-12)
 
-            if j % 500 == 0:
+            if i % 10 == 0 and j == 100:
                 test(model)
-        else:
-            plt.clf()
+
+        # if i % 1 == 0:
+        #     plt.plot(i, losses[i], 'b+')
+        #     plt.yscale('log')
+        #     plt.pause(1e-12)
 
         # plt.savefig('./params_1/fig{}.png'.format(i))
-        # plt.clf()
-        print(i, 'end of learning')
-        serializers.save_npz('./params_1/{}_.model'.format(i), model)
-
+        print('{:.3f} s for the end of learning {}'.format(time.time() - sample_t, i))
+        # serializers.save_npz('./params_1/{}_.model'.format(i), model)
 
     queue.put(1)
     return
@@ -365,7 +377,7 @@ def test(model):
     # 22, 23 are desirable
     print(idx, "<- idx, ", score[idx], "<- value")
     # print(a[:, idx])
-    print(time.time() - start, "sec for all")
+    print("{:.4f} sec for test".format(time.time() - start))
 
 if __name__ == '__main__':
 
