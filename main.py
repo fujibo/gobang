@@ -34,47 +34,6 @@ def winning(board):
     else:
         return False
 
-# @numba.jit(numba.b1(numba.i1[:]))
-# def winning(board):
-#     'board: flatten board'
-#     tf = False
-#
-#     board = board.reshape(N, N)
-#     for i in range(N):
-#         if np.sum(board[i, :] == 1) < 4:
-#             continue
-#         for j in range(N - M + 1):
-#             # white
-#             if (board[i, j:j + M] == 1).all():
-#                 tf = True
-#                 break
-#     if tf:
-#         return True
-#     for i in range(N):
-#         if np.sum(board[:, i] == 1) < 4:
-#             continue
-#         for j in range(N - M + 1):
-#             if (board[j:j + M, i] == 1).all():
-#                 tf = True
-#                 break
-#     if tf:
-#         return True
-#
-#     for i in range(N - M + 1):
-#         for j in range(N - M + 1):
-#             tmp = board[i:i + M, j:j + M]
-#             if (tmp.diagonal() == 1).all():
-#                 tf = True
-#                 # print("diag1 i, j", i, j)
-#                 break
-#
-#             elif (np.rot90(tmp).diagonal() == 1).all():
-#                 tf = True
-#                 # print("diag2 i, j", i, j)
-#                 break
-#     return tf
-
-
 @numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]), cache=True)
 def reward(board, action):
     tmp = board.copy()
@@ -100,7 +59,6 @@ def getFeature(board, action):
     feature = tmp.astype(np.float32)
     return feature
 
-
 @numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
@@ -113,9 +71,6 @@ def getFeatures(board, actions):
     # for i in range(actions.shape[1]):
     #     Features[i, :] = getFeature(board, actions[:, i])
     return Features
-
-# @numba.jit(numba.f8[:](numba.f8[:]))
-
 
 def game(model):
 
@@ -260,7 +215,6 @@ def dispBoard(board):
         else:
             print("")
 
-
 def main(queue, pid):
     model = MyChain()
     optimizer = optimizers.Adam()
@@ -303,37 +257,6 @@ def main(queue, pid):
         if i % 1000 == 0:
             serializers.save_npz('./params/{}.model'.format(i), model)
 
-    # # reinforced learning
-    # for i in range(1000):
-    #     if i % 10 == 0:
-    #         weights0 = weights.copy()
-    #         print(weights0)
-    #         test(weights0)
-    #     if i % 20 == 5:
-    #         pstart = time.time()
-    #         b, res, moved = play(weights0, weights)
-    #         dispBoard(b)
-    #         print(moved)
-    #         print("play time", time.time() - pstart)
-    #
-    #     if i % 100 == 0:
-    #         # np.save('weights{}_{}.npy'.format(i, pid), weights)
-    #         print(weights)
-    #         print(i)
-    #     if np.max(np.abs(weights)) > 1000:
-    #         queue.put(-100)
-    #         return
-    #     weights = game(weights)
-    # else:
-    #     # display result
-    #     np.save('weights1000.npy', weights)
-    #     pstart = time.time()
-    #     b, res, moved = play(weights0, weights)
-    #     dispBoard(b)
-    #     print(moved)
-    #     print("play time", time.time() - pstart)
-    #     queue.put(res)
-    #     # return res
     queue.put(1)
     return
 
@@ -436,7 +359,6 @@ def test(model):
     # print(a[:, idx])
     print(time.time() - start, "sec for all")
 
-
 if __name__ == '__main__':
 
     queue = mp.Queue()
@@ -447,7 +369,6 @@ if __name__ == '__main__':
         main(queue, 0)
         pc += 1
     else:
-        # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
         ps = [mp.Process(target=main, args=(queue, i)) for i in range(testSize)]
 
         while pc < min(mp.cpu_count(), testSize):
