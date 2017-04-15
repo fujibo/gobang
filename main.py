@@ -9,7 +9,8 @@ from evaluation import *
 # board 0: blank, 1: white, -1: black
 N = 7
 M = 4
-Fsize = N * N * 2
+# Fsize = N * N * 2
+Fsize = N * N
 
 @numba.jit(cache=True)
 def winning(board):
@@ -48,27 +49,28 @@ def reward(board, action):
     return reward
 
 
-@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]), cache=True)
+@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeature(board, action):
     'board: board now, action: one action'
 
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
 
-    tmp = tmp.flatten()
     feature = tmp.astype(np.float32)
     return feature
 
-@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
+@numba.jit(numba.f4[:, :, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
     Features = board.flatten().reshape(1, board.size).repeat(
-        actions.shape[1], axis=0)
+        actions.shape[1], axis=0).reshape(-1, N, N)
     for i in range(actions.shape[1]):
-        Features[i, actions[0, i] + actions[1, i] * N] = 1
+        Features[i, actions[0, i], actions[1, i]] = 1
 
-    Features = np.hstack((Features == 1, Features == -1)).astype(np.float32)
+    # Features = np.hstack((Features == 1, Features == -1)).astype(np.float32)
+    Features = Features.reshape(-1, 1, N, N).astype(np.float32)
+
     # Features = np.zeros((actions.shape[1], Fsize), dtype=np.float32)
     # for i in range(actions.shape[1]):
     #     Features[i, :] = getFeature(board, actions[:, i])
@@ -232,7 +234,7 @@ def main(queue, pid):
         for j in range(1, 1001):
 
             # a x 49
-            x_ = Variable(x)
+            x_ = Variable(x.reshape(-1, 1, N, N))
             # a x 1
             y_ = Variable(y)
 
@@ -244,7 +246,7 @@ def main(queue, pid):
             losses.append(loss.data)
 
             if j % 50 == 0:
-                plt.plot(losses, 'b')
+                plt.plot(range(j-50, j, 10), losses[j-50:j:10], 'b')
                 plt.yscale('log')
                 plt.pause(1e-12)
 
@@ -256,7 +258,7 @@ def main(queue, pid):
         # plt.savefig('./params_1/fig{}.png'.format(i))
         # plt.clf()
         print(i, 'end of learning')
-        serializers.save_npz('./params_1/{}_.model'.format(k), model)
+        serializers.save_npz('./params_1/{}_.model'.format(i), model)
 
 
     queue.put(1)
@@ -351,6 +353,10 @@ def test(model):
     b[3, 2] = 1
     b[3, 3] = 1
     b[3, 4] = 1
+    b[4, 2] = -1
+    b[4, 3] = -1
+    b[4, 4] = -1
+
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
     score = model.get(fs)[:, 0]
