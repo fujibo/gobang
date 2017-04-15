@@ -61,7 +61,11 @@ def getFeature(board, action):
 
 @numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeatures(board, actions):
-    'board: board now, actions: can put there'
+    '''
+    board: board now
+    actions: can put there
+    return: len(next_moves) x (NxN)
+    '''
     # use next board(after-an-action) state  as parameters
     Features = board.flatten().reshape(1, board.size).repeat(
         actions.shape[1], axis=0).astype(np.float32)
@@ -100,7 +104,7 @@ def game(model):
             r = np.random.randint(actions[0].size)
         else:
             # actions[0] x 1
-            r = np.argmax(model.get(features)[:, 0])
+            r = np.argmax(model.get(features.reshape(len(features), 1, N, N))[:, 0])
             # r = np.argmax(weights.dot(features.transpose()))
 
         action = actions[:, r]
@@ -131,7 +135,7 @@ def game(model):
             xs.append(feature)
 
             # この内の最大となるyを選択したい
-            y = -gamma * np.max(model.get(nextfeatures)[:, 0])
+            y = -gamma * np.max(model.get(nextfeatures.reshape(len(nextfeatures), 1, N, N))[:, 0])
             ys.append(y)
 
         # put
@@ -200,7 +204,6 @@ def play(weights1, weights2):
         # end of this turn
         turn = not turn
 
-
 def dispBoard(board):
     'display board'
     print("")
@@ -238,7 +241,7 @@ def main(queue, pid):
         if i % 1 == 0:
             model.cleargrads()
             # a x 49
-            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, Fsize))
+            x_ = Variable(np.array(x_data, dtype=np.float32).reshape(data_size, 1, N, N))
             # a x 1
             y_ = Variable(np.array(y_data, dtype=np.float32).reshape(data_size, 1))
             loss = model(x_, y_)
@@ -247,15 +250,16 @@ def main(queue, pid):
 
             losses.append(loss.data)
 
-        if i % 5 == 0:
+        if i % 20 == 0:
             test(model)
 
-            plt.plot(losses, 'b')
+            plt.plot(range(1, i, i//10), losses[::i//10], 'b')
             plt.yscale('log')
-            plt.pause(0.01)
+            plt.pause(1e-12)
 
         if i % 1000 == 0:
             serializers.save_npz('./params/{}.model'.format(i), model)
+            print('save model')
 
     queue.put(1)
     return
@@ -274,11 +278,11 @@ def getMove(board, model, flag, depth):
         actions = np.array(np.where(board == 0))
         features = getFeatures(board, actions)
         if flag:
-            return np.argmax(model.get(features)[:, 0])
+            return np.argmax(model.get(features.reshape(len(features), 1, N, N))[:, 0])
         else:
             if Mate(board, False, depth=1) == -1:
                 return -2
-            return -np.max(model.get(features)[:, 0])
+            return -np.max(model.get(features.reshape(len(features), 1, N, N))[:, 0])
     else:
         actions = np.array(np.where(board == 0))
         score = np.zeros(actions.shape[1])
@@ -351,7 +355,7 @@ def test(model):
     b[3, 4] = 1
     a = np.array(np.where(b == 0))
     fs = getFeatures(b, a)
-    score = model.get(fs)[:, 0]
+    score = model.get(fs.reshape(len(fs), 1, N, N))[:, 0]
     print(score)
     idx = np.argmax(score)
     # 22, 23 are desirable
