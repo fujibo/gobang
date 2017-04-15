@@ -11,42 +11,30 @@ N = 7
 M = 4
 Fsize = N * N * 2
 
-
-@numba.jit(numba.b1(numba.i1[:]))
+@numba.jit(cache=True)
 def winning(board):
-    tf = False
-
-    board = board.reshape(N, N)
-    for i in range(N):
-        for j in range(N - M + 1):
-            # white
-            if (board[i, j:j + M] == 1).all():
-                tf = True
-                # print("row i, j", i, j)
-                break
-            elif (board[j:j + M, i] == 1).all():
-                tf = True
-                # print("col i, j", i, j)
-                break
-    if tf:
-        return True
-
+    b = board.reshape(N, N) == 1
     for i in range(N - M + 1):
         for j in range(N - M + 1):
-            tmp = board[i:i + M, j:j + M]
-            if (tmp.diagonal() == 1).all():
-                tf = True
-                # print("diag1 i, j", i, j)
-                break
+            tmp = b[i:i + M, j:j + M].flatten()
+            for k in range(N - M + 1):
+                # col
+                if tmp[k] and tmp[k+4] and tmp[k+8] and tmp[k+12]:
+                    return True
+                # row
+                if tmp[k*4] and tmp[k*4+1] and tmp[k*4+2] and tmp[k*4+3]:
+                    return True
 
-            elif (np.rot90(tmp).diagonal() == 1).all():
-                tf = True
-                # print("diag2 i, j", i, j)
-                break
-    return tf
+            # diag
+            else:
+                if tmp[0] and tmp[5] and tmp[10] and tmp[15]:
+                    return True
+                elif tmp[3] and tmp[6] and tmp[9] and tmp[12]:
+                    return True
+    else:
+        return False
 
-
-@numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4(numba.i1[:, :], numba.i8[:, :]), cache=True)
 def reward(board, action):
     tmp = board.copy()
     tmp[action[0], action[1]] = 1
@@ -60,7 +48,7 @@ def reward(board, action):
     return reward
 
 
-@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeature(board, action):
     'board: board now, action: one action'
 
@@ -71,8 +59,7 @@ def getFeature(board, action):
     feature = tmp.astype(np.float32)
     return feature
 
-
-@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]))
+@numba.jit(numba.f4[:, :](numba.i1[:, :], numba.i8[:, :]), cache=True)
 def getFeatures(board, actions):
     'board: board now, actions: can put there'
     # use next board(after-an-action) state  as parameters
@@ -88,8 +75,6 @@ def getFeatures(board, actions):
     return Features
 
 # @numba.jit(numba.f8[:](numba.f8[:]))
-
-
 def game(model, eps=0.10):
 
     xs = []
@@ -178,7 +163,6 @@ def dispBoard(board):
                 print(".", end="")
         else:
             print("")
-
 
 def main(queue, pid):
     model = MyChain()
@@ -278,30 +262,88 @@ def main(queue, pid):
     queue.put(1)
     return
 
-@numba.jit(numba.i8(numba.i1[:, :], numba.f8[:], numba.b1, numba.i8))
+@numba.jit(numba.f4(numba.i1[:, :], numba.f8[:], numba.b1, numba.i8), cache=True)
 def getMove(board, model, flag, depth):
     '''board, model, flag, depth
     flag: if this function is for idx or for score'''
+    # check mate
+    if flag:
+        res = Mate(board, True, depth=3)
+        if res != -1:
+            return res
+
     if depth == 1:
         actions = np.array(np.where(board == 0))
         features = getFeatures(board, actions)
         if flag:
             return np.argmax(model.get(features)[:, 0])
         else:
+            if Mate(board, False, depth=1) == -1:
+                return -2
             return -np.max(model.get(features)[:, 0])
     else:
         actions = np.array(np.where(board == 0))
         score = np.zeros(actions.shape[1])
         for i in range(actions.shape[1]):
-            nextboard = board.copy()
-            nextboard[actions[0, i], actions[1, i]] = 1
-            nextboard = -nextboard
-            score[i] = getMove(nextboard, model, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 1
+            score[i] = getMove(-board, model, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 0
         else:
             if flag:
-                return np.argmax(score)
+                if np.max(score) == -2:
+                    return getMove(board, model, True, depth=1)
+                else:
+                    return np.argmax(score)
             else:
-                return np.max(score)
+                return -np.max(score)
+
+@numba.jit(numba.i8(numba.i1[:, :], numba.b1, numba.i8), cache=True)
+def Mate(board, flag, depth):
+    '''board, model, flag, depth
+    flag: if this function is for idx or for score'''
+    if depth == 1:
+        actions = np.array(np.where(board == 0))
+        for i in range(actions.shape[1]):
+            board[actions[0, i], actions[1, i]] = 1
+            if winning(board.flatten()):
+                board[actions[0, i], actions[1, i]] = 0
+                if flag:
+                    return i
+                else:
+                    return -1
+            board[actions[0, i], actions[1, i]] = 0
+        else:
+            if flag:
+                return -1
+            else:
+                return 0
+
+    else:
+        # if flag:
+        #     res = Mate(board, True, depth=1)
+        #     if res != -1:
+        #         return res
+
+        actions = np.array(np.where(board == 0))
+        score = np.zeros(actions.shape[1])
+        for i in range(actions.shape[1]):
+            board[actions[0, i], actions[1, i]] = 1
+            # 相手の手によって決着がつかないことを知っていれば舐めた手をしても良い
+            if winning(board):
+                score[i] = 1
+            else:
+                score[i] = Mate(-board, False, depth-1)
+            board[actions[0, i], actions[1, i]] = 0
+            if score[i] == 1:
+                if flag:
+                    return i
+                else:
+                    return -1
+        else:
+            if flag:
+                return -1
+            else:
+                return -np.max(score)
 
 def test(model):
     start = time.time()
@@ -319,7 +361,6 @@ def test(model):
     # print(a[:, idx])
     print(time.time() - start, "sec for all")
 
-
 if __name__ == '__main__':
 
     queue = mp.Queue()
@@ -330,7 +371,6 @@ if __name__ == '__main__':
         main(queue, 0)
         pc += 1
     else:
-        # ps = [mp.Process(target=main, args=(queue, np.random.rand(1, Fsize)/10, i)) for i in range(testSize)]
         ps = [mp.Process(target=main, args=(queue, i)) for i in range(testSize)]
 
         while pc < min(mp.cpu_count(), testSize):
