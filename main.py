@@ -168,7 +168,7 @@ def dispBoard(board):
 
 def main(queue, pid):
     model = MyChain()
-    # serializers.load_npz('./params_1/99.model', model)
+    serializers.load_npz('./params_1/{}_.model'.format(8000 - 1), model)
     optimizer = optimizers.Adam()
     optimizer.setup(model)
 
@@ -197,13 +197,13 @@ def main(queue, pid):
     losses = []
 
     # learning
-    for i in range(1000):
+    for i in range(10000):
         ########
         # game #
         ########
         sample_t = time.time()
         xs, nxs, ys = game(model, eps=0.1)
-        print('{:.3f} s for a game'.format(time.time() - sample_t))
+        # print('{:.3f} s for a game'.format(time.time() - sample_t))
         # xs, ys = game(model)
         num = len(ys)
 
@@ -236,32 +236,31 @@ def main(queue, pid):
                 nextfeatures = getFeatures(tmp, nextactions)
                 y[k, 0] = -gamma * np.max(model.get(nextfeatures)[:, 0])
 
-        print('{:.3f} sec for sampling'.format(time.time() - sample_t))
+        # print('{:.3f} sec for sampling'.format(time.time() - sample_t))
 
 
         ############
         # training #
         ############
         sample_t = time.time()
-        for j in range(1, 101):
+        # a x 49
+        x_ = Variable(x.reshape(-1, 1, N, N))
+        # a x 1
+        y_ = Variable(y)
 
-            # a x 49
-            x_ = Variable(x.reshape(-1, 1, N, N))
-            # a x 1
-            y_ = Variable(y)
-
+        for j in range(1, 11):
             model.cleargrads()
             loss = model(x_, y_)
             loss.backward()
             optimizer.update()
 
             # losses.append(loss.data)
-            if j == 1:
+            if i % 100 == 0 and j == 1:
                 losses.append(loss.data)
                 print('loss = {:.3e}'.format(float(loss.data)))
 
 
-            if i % 10 == 0 and j == 100:
+            if i % 100 == 0 and j == 10:
                 test(model)
 
         # if i % 1 == 0:
@@ -270,8 +269,9 @@ def main(queue, pid):
         #     plt.pause(1e-12)
 
         # plt.savefig('./params_1/fig{}.png'.format(i))
-        print('{:.3f} s for the end of learning {}'.format(time.time() - sample_t, i))
-        # serializers.save_npz('./params_1/{}_.model'.format(i), model)
+        # print('{:.3f} s for the end of learning {}'.format(time.time() - sample_t, i))
+        if i % 100 == 0:
+            serializers.save_npz('./params_1/{}_.model'.format(i+8000), model)
 
     queue.put(1)
     return

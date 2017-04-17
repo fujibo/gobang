@@ -93,7 +93,7 @@ def com_turn(image, board, points):
 
 if __name__ == '__main__':
     model = main.MyChain()
-    serializers.load_npz('./params_1/99_.model', model)
+    serializers.load_npz('./params_1/10900_.model', model)
 
     while True:
         # human: True, computer: False
