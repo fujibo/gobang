@@ -17,10 +17,17 @@ python main.py
 ```
 
 ## Assumed Environment
-* python3
-* chainer
+* python3 (anaconda)
+* chainer1.24
 * opencv
 * numba
+
+```bash
+# to install chainer 
+pip install chainer==1.24.0
+# to install opencv3
+conda install -c menpo opencv3
+```
 
 ## About Source Code
 * main.py
